@@ -59,11 +59,15 @@ These are the surfaces where a security bug would matter:
 - **Read-only endpoints with corpus reach (`GET /api/search`,
   `GET /api/preview`, `GET /api/bucket/*`, `GET /metrics`).** v2 added
   full-text search across the raw corpus and a side-effect-free render
-  endpoint. Both stay open on every bind (matching the rest of the GET
-  surface). Report anything that lets a caller exfiltrate state outside the
-  corpus (e.g. arbitrary file reads via the search filter), trigger
-  unbounded resource use (the preview width/height are clamped to
-  `800×480` and the search limit to 500), or bypass the bind check.
+  endpoint. When a token is configured, `GET /api/search` and
+  `GET /api/bucket/*` are gated along with the rest of the JSON GET surface;
+  `GET /api/preview` stays open because a browser loads it via `<img src>`
+  and a tag cannot attach a request header, and `GET /metrics` stays open
+  for scrapers unless `--web-metrics-token` is set. Report anything that
+  lets a caller exfiltrate state outside the corpus (e.g. arbitrary file
+  reads via the search filter), trigger unbounded resource use (the preview
+  width/height are clamped to `800×480` and the search limit to 500), or
+  bypass the bind check.
   `/metrics` reuses `idle_hours_health.summarise` over a fixed 24 h window —
   if the summariser ever leaks request data into the metric values, that's
   in scope.

@@ -384,6 +384,45 @@ class TestRunClockIntegration:
             f"{sorted(unknown)}"
         )
 
+    def test_shipped_example_documents_every_schema_key(self):
+        """Every CONFIG_SCHEMA key must appear in the example, set or
+        commented out.
+
+        ``test_shipped_example_keys_are_all_in_schema`` pins the other
+        direction (no *extra* keys), and ``TestShippedDefaultsFile`` pins
+        completeness for the defaults file — but nothing pinned
+        completeness *here*, so the example drifted one-way across three
+        commits: ``photo_path`` (the only way to point the ``photo``
+        theme at a picture), ``web_allowed_hosts`` (the DNS-rebinding
+        allowlist a reverse-proxied loopback bind needs to answer at
+        all), ``web_metrics_token`` and ``web_token`` all landed in the
+        schema and in ``config.toml.defaults`` — which is fenced — while
+        the example, which CLAUDE.md and docs/pi_setup_inky_impression.md
+        both advertise as carrying *every supported key*, was left
+        behind.
+
+        A key whose default is ``None`` cannot be written as an active
+        TOML value (no null literal), so a commented-out ``# key = ...``
+        line counts: the operator still learns the knob exists, which is
+        the property this file owes them.
+        """
+        import re
+        import tomllib
+
+        example = Path(__file__).resolve().parent.parent / "idle_hours" / "assets" / "config.toml.example"
+        text = example.read_text(encoding="utf-8")
+        active = set(tomllib.loads(text).keys())
+        # ``# photo_path = "..."`` — a commented-out assignment, not prose
+        # that happens to name the key.
+        commented = set(re.findall(r"^#\s*([a-z_][a-z0-9_]*)\s*=", text, re.M))
+        missing = set(runtime_config.CONFIG_SCHEMA) - active - commented
+        assert not missing, (
+            f"idle_hours/assets/config.toml.example does not document schema "
+            f"keys {sorted(missing)}; add each one (commented out if its "
+            f"argparse default is None) or stop advertising the file as "
+            f"carrying every supported key"
+        )
+
 
 class TestShippedDefaultsFile:
     """``idle_hours/assets/config.toml.defaults`` is the faithful dump: every key set
