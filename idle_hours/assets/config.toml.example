@@ -38,6 +38,21 @@ width          = 800
 height         = 480
 interval_seconds = 60
 
+# Source for the `photo` theme, which displays the operator's own picture
+# behind the quote: a single image file, or a directory that rotates
+# deterministically as the displayed quote changes. A single file may be any
+# format Pillow reads; a DIRECTORY is scanned for .jpg / .jpeg / .png / .webp
+# / .bmp / .gif / .tif / .tiff only — a deliberate allowlist, so pointing at a
+# directory full of other things doesn't mean probing every file with
+# Image.open. A directory holding only other formats reads as empty and falls
+# back like any other failure.
+# The picture is conditioned (desaturated and contrast-compressed only as
+# far as it needs to be) before dithering against all six inks, and the
+# quote card is placed over whichever region holds the least detail.
+# Unset by default, in which case `theme = "photo"` falls back to the
+# bundled autochrome garden plate.
+# photo_path     = "/var/lib/idle-hours/photos"
+
 # ---- Persistent runtime state ----------------------------------------------
 # These paths are typically under systemd's StateDirectory. Use absolute
 # paths so the service works regardless of WorkingDirectory.
@@ -116,15 +131,47 @@ shutdown_command = "systemctl poweroff"
 # to skip the startup frame (saves 10–20s at boot). Same three-way choice
 # as quiet_image:
 #   "<path>"  — copy a static PNG.
-#   "auto"    — render "Good night." in the active theme on the fly.
+#   "auto"    — render the sleep quote ("To sleep, perchance to dream." /
+#               Shakespeare / Hamlet) through the full literary layout, in
+#               the active theme. Resolves through `theme` (honouring any
+#               persisted button-B override), NOT `quiet_theme` — a cold
+#               boot is not a quiet-hours entry.
 # startup_image = "auto"
 
 # ---- Curator web UI (optional) ---------------------------------------------
 # Off by default. Loopback binds (127.0.0.1, ::1) don't need a token; any
-# other bind REQUIRES web_token_file (or web_token). Prefer web_token_file
-# so the secret never appears in `ps` / journald.
+# other bind REQUIRES web_token_file (or web_token) — without one the UI
+# refuses to start (logged to stderr; the clock keeps rendering) rather
+# than expose a tokenless mutating surface. Prefer web_token_file so the
+# secret never appears in `ps` / journald.
+#
+# A configured token gates every POST *and* every JSON GET (/api/history,
+# /api/search, /api/bucket/*, /api/overrides, ...). Four routes stay open
+# because a browser cannot attach a request header to them: the static
+# shell (/, /main.js, /style.css), /current.png, /api/preview, and
+# /metrics.
 # web_bind       = "127.0.0.1:8080"
 # web_token_file = "/var/lib/idle-hours/web.token"
+# web_token      = "<paste-token-here>"   # visible in `ps` / journald — prefer web_token_file
+
+# Also require the token on GET /metrics. Off by default so an existing
+# Prometheus scrape keeps working; turn it on if the LAN is not trusted.
+# web_metrics_token = false
+
+# Extra hostnames accepted in the request's Host header. This is the
+# DNS-rebinding guard: an attacker-controlled name resolving to 127.0.0.1
+# would otherwise reach a loopback bind as a same-origin page. Hostname
+# only — the port is not compared, so a port-rewriting proxy still works.
+#
+# LOOPBACK BINDS ARE STRICT: 127.0.0.1 / localhost / ::1 are accepted and
+# nothing else, so reaching the UI at an mDNS name or through a reverse
+# proxy returns 403 until you name it here. Non-loopback binds stay
+# permissive unless this list is non-empty (they require a token anyway).
+#
+# Note the CLI --web-allowed-host REPLACES this list rather than appending
+# to it, so the allowlist can be tightened from the shell without editing
+# the file.
+# web_allowed_hosts = ["idle-hours.local"]
 
 # ---- Webhook notifications (optional, v2) ----------------------------------
 # When set, the loop POSTs a JSON body for each alert-worthy telemetry event
