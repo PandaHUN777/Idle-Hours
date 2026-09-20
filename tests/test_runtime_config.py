@@ -423,6 +423,44 @@ class TestRunClockIntegration:
             f"carrying every supported key"
         )
 
+    def test_photo_path_docs_match_the_directory_suffix_allowlist(self):
+        """Both shipped config files must list exactly the extensions
+        ``_photo_candidates`` actually admits from a directory.
+
+        A Codex review finding on the PR that added ``photo_path`` to the
+        example: the comment said "Any format Pillow reads", which is true
+        of the single-file branch but not of a directory — that one filters
+        the listing through ``render_quote._PHOTO_SUFFIXES``, deliberately,
+        so a directory an operator points at is not probed file by file
+        with ``Image.open``. A directory of PPMs therefore reads as empty
+        and degrades to the bundled autochrome plate, which is precisely
+        the silent fallback the key was documented to prevent.
+
+        The corrected comment spells the allowlist out, which makes it a
+        hand-maintained copy of a frozenset — the drift this whole PR is
+        about. So it is fenced rather than trusted.
+        """
+        import re
+
+        from idle_hours.render_quote import _PHOTO_SUFFIXES
+
+        assets = Path(__file__).resolve().parent.parent / "idle_hours" / "assets"
+        for name in ("config.toml.example", "config.toml.defaults"):
+            text = (assets / name).read_text(encoding="utf-8")
+            # The photo_path comment block, not the whole file: an extension
+            # named anywhere else must not satisfy this.
+            start = text.index("Source for the `photo` theme")
+            block = text[start:text.index("photo_path", start)]
+            # The lookbehind keeps ``Image.open`` — named in this very block —
+            # from reading as an extension. A suffix is always written
+            # free-standing, never attached to an identifier.
+            documented = set(re.findall(r"(?<![A-Za-z])\.[a-z0-9]+", block))
+            assert documented == set(_PHOTO_SUFFIXES), (
+                f"{name}: photo_path comment documents {sorted(documented)} but "
+                f"_photo_candidates admits {sorted(_PHOTO_SUFFIXES)} from a "
+                f"directory; update the comment or broaden _PHOTO_SUFFIXES"
+            )
+
 
 class TestShippedDefaultsFile:
     """``idle_hours/assets/config.toml.defaults`` is the faithful dump: every key set

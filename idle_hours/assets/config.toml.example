@@ -40,7 +40,12 @@ interval_seconds = 60
 
 # Source for the `photo` theme, which displays the operator's own picture
 # behind the quote: a single image file, or a directory that rotates
-# deterministically as the displayed quote changes. Any format Pillow reads.
+# deterministically as the displayed quote changes. A single file may be any
+# format Pillow reads; a DIRECTORY is scanned for .jpg / .jpeg / .png / .webp
+# / .bmp / .gif / .tif / .tiff only — a deliberate allowlist, so pointing at a
+# directory full of other things doesn't mean probing every file with
+# Image.open. A directory holding only other formats reads as empty and falls
+# back like any other failure.
 # The picture is conditioned (desaturated and contrast-compressed only as
 # far as it needs to be) before dithering against all six inks, and the
 # quote card is placed over whichever region holds the least detail.
