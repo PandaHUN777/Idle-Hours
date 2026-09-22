@@ -252,6 +252,7 @@ def parse_args() -> argparse.Namespace:
         "photo",
         "betweenus",
         "betweenus_dark",
+        "carcosa",
         "diags",
     ]
     parser.add_argument(

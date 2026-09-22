@@ -234,6 +234,10 @@ THEME_SATURATION: dict[str, float] = {
     # tints. Same chromatic-on-dark profile as ``dark`` / ``gothic``: push the
     # amber so it reads as apricot rather than desaturating to mud.
     "betweenus_dark": 0.7,
+    # The King in Yellow — black night over Carcosa, solid yellow curtains,
+    # Sign and suns. Dark-ground tier, same as ``dark`` / ``grimdark``: the
+    # yellow is the whole point and must not desaturate toward mustard.
+    "carcosa": 0.7,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler
