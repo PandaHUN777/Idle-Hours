@@ -6,6 +6,7 @@ import argparse
 import bisect
 import collections
 import datetime
+import functools
 import io
 import math
 import os
@@ -134,6 +135,8 @@ THEME_ORDER: tuple[str, ...] = (
     "carcosa",
     "control",
     "observation",
+    "culture",
+    "orbital",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -1240,6 +1243,38 @@ THEMES = {
         "ornament_light": SPECTRA6["yellow"],
         "source": SPECTRA6["white"],
     },
+    # Iain M. Banks's Culture — a Mind's signal intercepted in deep space, beside
+    # the Orbital it concerns. A custom frame (``render_culture_frame``): black
+    # space, the signal's header and body in white, the matched phrase yellow in
+    # a green drone-aura bloom, a tilted Orbital whose current plate marks the
+    # time of day, and the phrase again in Marain-idiom glyphs. The slots below
+    # serve only the goodnight / source-card fall-through paths.
+    "culture": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["blue"],
+        "accent": SPECTRA6["yellow"],
+        "ornament_dark": SPECTRA6["blue"],
+        "ornament_light": SPECTRA6["blue"],
+        "source": SPECTRA6["white"],
+    },
+    # The Culture's Arch — the far side of an Orbital seen from one of its
+    # plates. A custom frame (``render_orbital_frame``) whose sky, sun and
+    # quote card all follow the hour, and whose Arch is lit plate by plate by
+    # each plate's own local time. The slots below serve only the goodnight /
+    # source-card fall-through paths (day inks: white card, dark type, blue
+    # phrase).
+    "orbital": {
+        "page_bg": SPECTRA6["white"],
+        "text": SPECTRA6["black"],
+        "subtle": SPECTRA6["black"],
+        "faint": SPECTRA6["blue"],
+        "accent": SPECTRA6["blue"],
+        "ornament_dark": SPECTRA6["blue"],
+        "ornament_light": SPECTRA6["white"],
+        "source": SPECTRA6["black"],
+    },
     # Wax-sealed letter. A quote presented as intimate handwritten
     # correspondence on a sheet of aged paper. White ``page_bg`` warmed
     # to a faint cream/vellum by ``draw_letter_border``'s Layer 0
@@ -1837,6 +1872,18 @@ PLEXMONO_REGULAR = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf")
 PLEXMONO_MEDIUM = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf")
 PLEXMONO_SEMIBOLD = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf")
 PLEXMONO_BOLD = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf")
+# Jura (Daniel Johnson / The Jura Project Authors, OFL) — a humanist
+# technical sans with calligraphic stroke endings, static Regular / Medium /
+# SemiBold / Bold. The Culture pair's body face: futurist without being a
+# spaceship font, which suits a civilisation whose Minds are urbane rather than
+# martial.
+JURA_REGULAR = str(BASE_DIR / "fonts/jura/Jura-Regular.ttf")
+JURA_MEDIUM = str(BASE_DIR / "fonts/jura/Jura-Medium.ttf")
+JURA_SEMIBOLD = str(BASE_DIR / "fonts/jura/Jura-SemiBold.ttf")
+JURA_BOLD = str(BASE_DIR / "fonts/jura/Jura-Bold.ttf")
+# Share Tech Mono (Carrois Type Design, OFL) — a narrow squared technical mono,
+# the signal-header and caption face of the Culture pair.
+SHARETECHMONO_REGULAR = str(BASE_DIR / "fonts/share-tech-mono/ShareTechMono-Regular.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3542,6 +3589,46 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         "ornament": [
             PLEXMONO_BOLD,
             SPACEMONO_BOLD,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "culture": {
+        # Jura — humanist technical sans. Medium for the body because white
+        # strokes on black need the extra stem to survive the palette snap,
+        # Bold for the matched phrase under its aura. Share Tech Mono carries the
+        # signal header and captions (loaded directly by the frame).
+        "quote_regular": [
+            JURA_MEDIUM,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            JURA_BOLD,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            JURA_BOLD,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "orbital": {
+        # Jura again — the two Culture themes are one universe seen from two
+        # places. SemiBold rather than Medium for the body: this card is white
+        # by day, and dark type on a light ground wants the heavier stem to
+        # hold its hairline terminals through the snap. Bold for the phrase.
+        "quote_regular": [
+            JURA_SEMIBOLD,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            JURA_BOLD,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            JURA_BOLD,
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
@@ -24708,6 +24795,898 @@ def render_observation_frame(time_str: str, quote_row: dict, width: int, height:
 
 
 
+
+# ---------------------------------------------------------------------------
+# The Culture — shared machinery for ``culture`` and ``orbital``
+# ---------------------------------------------------------------------------
+# Two themes after Iain M. Banks's Culture novels, and two views of the same
+# object. ``culture`` is a Mind's signal intercepted in deep space, with the
+# Orbital it concerns hanging beside it; ``orbital`` stands on that Orbital's
+# surface and looks up at the far side of the ring arching across the sky.
+#
+# **Both of them tell the time with the Orbital itself**, which is the reason
+# the pair exists rather than a skin over the literary layout. An Orbital is a
+# ring millions of kilometres across that spins once a day, so every plate on
+# it cycles through dawn, noon, dusk and midnight — and at any instant the
+# ring as a whole carries *every* local time at once, noon on the plate facing
+# the sun and midnight on the plate opposite. The frames read the clock off
+# that fact rather than bolting a numeral on:
+#
+# * ``culture`` marks the plate whose local time is now. The marker travels
+#   the full ring once per 24 hours, riding the lit inner face through the day
+#   and crossing round onto the dark hull at night.
+# * ``orbital`` paints the far side of the ring as the local clock sees it. The
+#   part of the Arch overhead is twelve hours away, so at noon the zenith is
+#   dark and the Arch is lit only where it leaves the horizons, and at midnight
+#   the zenith blazes in daylight across a black sky — which is the image Banks
+#   himself keeps returning to. The sky follows the hour too.
+#
+# Neither surfaces a digit of the time: the matched phrase carries the readable
+# time, the ring carries its shape. Both use the full 24-hour clock (to the
+# minute), because on an Orbital noon and midnight are different pictures.
+#
+# **Marain.** The Culture's language is written on a 3x3 grid of points. The
+# glyphs here are a *Marain-idiom* script, generated rather than transcribed:
+# each letter is given a fixed connected pattern on that grid by
+# ``_marain_code``. Banks published the idea of the grid; this table is not
+# his, and nothing here claims to reproduce it. What it does do is transcribe
+# real text deterministically — ``culture`` writes the matched time phrase out
+# in it, so the page states the time twice, once in each language.
+#
+# **Ship names are invented.** The Culture's ships name themselves, famously
+# and at length; the list below is original and time-flavoured (this is a
+# clock), rather than lifted from the novels.
+# ---------------------------------------------------------------------------
+_CULTURE_SHIP_NAMES = (
+    "Punctuality Is A Lesser Virtue",
+    "Late Again, As Foretold",
+    "Nobody Checks The Minutes",
+    "Tea Before Eschatology",
+    "Quietly Keeping Count",
+    "Still Reading, Do Not Disturb",
+    "An Hour Is Mostly Interval",
+    "Borrowed Time, Returned With Interest",
+    "The Clock Is Only A Suggestion",
+    "Patience Of A Minor Deity",
+    "Footnote To A Longer Argument",
+    "Ask Me Again After This Chapter",
+    "Wrong Century, Right Intentions",
+    "Well-Thumbed Margins",
+    "Somewhat Overdue",
+    "Terminally Bookish",
+    "Reads Aloud To Strangers",
+    "Dog-Eared But Unbowed",
+    "Never Skips To The Last Page",
+    "Idle Hours Well Spent",
+)
+_CULTURE_SHIP_CLASSES = ("GSV", "GCU", "LSV", "MSV", "VFP", "GOU")
+_CULTURE_CHANNELS = ("tight point", "stuttered tight point", "broadcast", "swept beam", "compact point")
+_CULTURE_MARAIN_LEVELS = ("M1", "M8", "M16", "M16.4", "M32")
+_CULTURE_ORBITAL_NAMES = (
+    "Masquerade Reach", "Tessellate", "Quillon", "Arvenhale", "Sorrowless", "Pelluc",
+    "Hollin Sweep", "Vey Toussant",
+)
+_CULTURE_PLATE_NAMES = (
+    "Lakeshore", "Hivel", "Orrent Downs", "Sallow", "Tarn Mile", "Cressing",
+    "Undersky", "Fennet",
+)
+
+
+def _culture_clock(time_str: str) -> float:
+    """Local time as a fraction of the day, 0.0 (midnight) .. <1.0.
+
+    Hour *and* minute: an Orbital's plates move continuously, and the frames
+    place things along the ring by it. A malformed string reads as noon, the
+    same defensive fallback the other clock-reading frames use.
+    """
+    try:
+        hh, mm = str(time_str).split(":", 1)
+        hour, minute = int(hh) % 24, int(mm[:2]) % 60
+    except ValueError:
+        hour, minute = 12, 0
+    return (hour * 60 + minute) / 1440.0
+
+
+def _culture_signal(quote_row: dict) -> dict:
+    """The signal's header furniture, derived from the row, never the clock.
+
+    A different quote is a different signal between different ships; the same
+    quote is the same signal on every render, which keeps the frame
+    byte-deterministic for run_clock's "quote unchanged, skip the redraw" dedup.
+    The two ships are always distinct.
+    """
+    digest = _row_digest(quote_row)
+    n = len(_CULTURE_SHIP_NAMES)
+    src = digest % n
+    dst = (src + 1 + (digest >> 5) % (n - 1)) % n
+    return {
+        "from": f"{_CULTURE_SHIP_CLASSES[(digest >> 10) % len(_CULTURE_SHIP_CLASSES)]} "
+                f"{_CULTURE_SHIP_NAMES[src]}",
+        "to": f"{_CULTURE_SHIP_CLASSES[(digest >> 13) % len(_CULTURE_SHIP_CLASSES)]} "
+              f"{_CULTURE_SHIP_NAMES[dst]}",
+        "channel": _CULTURE_CHANNELS[(digest >> 16) % len(_CULTURE_CHANNELS)],
+        "level": _CULTURE_MARAIN_LEVELS[(digest >> 19) % len(_CULTURE_MARAIN_LEVELS)],
+        # The ``tra.`` stamp is a Culture date, not a clock: it is the date the
+        # signal was sent, which belongs to the signal, which belongs to the row.
+        "stamp": f"n4.{28 + (digest >> 3) % 3}.{840 + (digest >> 7) % 60:03d}.{(digest >> 11) % 10000:04d}",
+        "orbital": _CULTURE_ORBITAL_NAMES[(digest >> 22) % len(_CULTURE_ORBITAL_NAMES)],
+        "plate": _CULTURE_PLATE_NAMES[(digest >> 25) % len(_CULTURE_PLATE_NAMES)],
+    }
+
+
+# -- Marain-idiom glyphs ------------------------------------------------------
+_MARAIN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+
+def _marain_connected(code: int) -> bool:
+    """True when the set cells of a 3x3 code form one orthogonally connected run."""
+    cells = [i for i in range(9) if code >> i & 1]
+    if not cells:
+        return False
+    seen, stack = {cells[0]}, [cells[0]]
+    while stack:
+        c = stack.pop()
+        r, q = divmod(c, 3)
+        for dr, dq in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            rr, qq = r + dr, q + dq
+            n = rr * 3 + qq
+            if 0 <= rr < 3 and 0 <= qq < 3 and code >> n & 1 and n not in seen:
+                seen.add(n)
+                stack.append(n)
+    return len(seen) == len(cells)
+
+
+def _marain_table() -> dict[str, int]:
+    """Assign every letter and digit a distinct, connected, 4-6 point pattern.
+
+    Walked by a fixed multiplicative step through the 512 codes so the
+    assignment is scattered rather than counting upward (neighbouring letters
+    would otherwise get near-identical glyphs), and filtered so each glyph is a
+    single connected figure — a scatter of loose points reads as noise, not as
+    writing. Deterministic at import; there is nothing to seed.
+    """
+    table: dict[str, int] = {}
+    used: set[int] = set()
+    code = 0
+    for ch in _MARAIN_ALPHABET:
+        while True:
+            code = (code * 5 + 173) % 512
+            if 4 <= bin(code).count("1") <= 6 and code not in used and _marain_connected(code):
+                break
+        used.add(code)
+        table[ch] = code
+    return table
+
+
+_MARAIN_TABLE = _marain_table()
+
+
+def _marain_code(ch: str) -> int | None:
+    """The 9-bit pattern for one character, ``None`` for a word gap."""
+    return _MARAIN_TABLE.get(ch.lower())
+
+
+def _marain_draw_glyph(draw: ImageDraw.ImageDraw, x: int, y: int, code: int,
+                       pitch: int, fill, *, stroke: int = 2, dot: int = 2) -> None:
+    """One glyph with its top-left grid point at ``(x, y)``.
+
+    Set points are joined to their set orthogonal neighbours, and every set
+    point carries a dot, so a lone point still reads as part of the figure.
+    """
+    pts = {}
+    for i in range(9):
+        if code >> i & 1:
+            r, q = divmod(i, 3)
+            pts[i] = (x + q * pitch, y + r * pitch)
+    for i, (px_, py_) in pts.items():
+        if i % 3 < 2 and i + 1 in pts:
+            draw.line([(px_, py_), pts[i + 1]], fill=fill, width=stroke)
+        if i + 3 in pts:
+            draw.line([(px_, py_), pts[i + 3]], fill=fill, width=stroke)
+    for px_, py_ in pts.values():
+        draw.ellipse((px_ - dot, py_ - dot, px_ + dot, py_ + dot), fill=fill)
+
+
+def _marain_layout(text: str, max_cols: int) -> list[list[int | None]]:
+    """Break ``text`` into rows of glyph codes, wrapping only at word gaps."""
+    words = [[_marain_code(c) for c in w if _marain_code(c) is not None] for w in text.split()]
+    words = [w for w in words if w]
+    rows: list[list[int | None]] = []
+    row: list[int | None] = []
+    for word in words:
+        need = len(word) + (1 if row else 0)
+        if row and len(row) + need > max_cols:
+            rows.append(row)
+            row = []
+        if row:
+            row.append(None)
+        row.extend(word[:max_cols])
+    if row:
+        rows.append(row)
+    return rows
+
+
+# -- culture: the Mind signal ---------------------------------------------------
+# A custom frame. Left: the signal, set out the way Banks prints ship-to-ship
+# traffic — a bracketed transmission line, then ``x`` (from) and ``o`` (to)
+# ship names — and the quote as its body. The matched phrase glows like a
+# drone's aura field. Right: the Orbital the signal concerns, a tilted ring
+# with a lit inner face, a night side pricked by city lights and a dark hull,
+# the current plate marked; and under it the matched phrase again, in Marain.
+_CULTURE_TEXT_X = (34, 462)
+_CULTURE_HEADER_Y = 28
+_CULTURE_RULE_Y = 104
+_CULTURE_QUOTE_RECT = (34, 120, 462, 396)
+_CULTURE_FOOTER_Y = 424
+_CULTURE_ORBITAL = (632, 168, 156)       # centre x, centre y, radius
+_CULTURE_ORBITAL_K = 0.42                # minor/major axis = sin(view elevation)
+_CULTURE_ORBITAL_TILT = -0.14            # screen rotation of the ring, radians
+_CULTURE_ORBITAL_W = 24                  # band thickness on screen, px
+_CULTURE_NOON = math.radians(-40)        # ring angle of the plate at local noon
+_CULTURE_MARAIN_RECT = (494, 338, 780, 446)
+_CULTURE_MARAIN_PITCH = 7
+_CULTURE_MARAIN_STEP = 24                # glyph advance, px
+_CULTURE_STAR_SEED = 0xBA4C5
+# Ships as (nose-left x, centreline y, length, half-girth): the GSV, then escorts.
+_CULTURE_SHIPS = ((520, 34, 84, 4), (618, 52, 22, 2), (656, 30, 14, 1))
+_CULTURE_STAR_COUNT = 260
+
+
+def _culture_ground() -> frozenset:
+    return frozenset({SPECTRA6["black"]})
+
+
+def _culture_paint_stars(image: Image.Image) -> None:
+    """A sparse seeded star field, kept off the text column."""
+    rng = random.Random(_CULTURE_STAR_SEED)
+    px = image.load()
+    width, height = image.size
+    white, yellow, blue = SPECTRA6["white"], SPECTRA6["yellow"], SPECTRA6["blue"]
+    x0, _, x1, _ = _CULTURE_QUOTE_RECT
+    for _ in range(_CULTURE_STAR_COUNT):
+        x, y = rng.randrange(width), rng.randrange(height)
+        roll = rng.random()
+        if x0 - 6 <= x <= x1 + 6:
+            continue
+        px[x, y] = yellow if roll < 0.08 else blue if roll < 0.22 else white
+
+
+def _culture_ring_uv(dx: float, dy: float) -> tuple[float, float]:
+    c, s = math.cos(_CULTURE_ORBITAL_TILT), math.sin(_CULTURE_ORBITAL_TILT)
+    return dx * c + dy * s, -dx * s + dy * c
+
+
+def _culture_ring_xy(u: float, v: float) -> tuple[float, float]:
+    c, s = math.cos(_CULTURE_ORBITAL_TILT), math.sin(_CULTURE_ORBITAL_TILT)
+    cx, cy, _ = _CULTURE_ORBITAL
+    return cx + u * c - v * s, cy + u * s + v * c
+
+
+def _culture_ring_point(theta: float, across: float = 0.5) -> tuple[float, float]:
+    """Screen position of ring angle ``theta`` at fraction ``across`` of the band."""
+    _, _, radius = _CULTURE_ORBITAL
+    u = radius * math.cos(theta)
+    v = radius * _CULTURE_ORBITAL_K * math.sin(theta) - across * _CULTURE_ORBITAL_W
+    return _culture_ring_xy(u, v)
+
+
+def _culture_terrain(arc: float, across: float) -> tuple[float, float]:
+    """``(land, cloud)`` fields over the ring's inner face.
+
+    Sums of incommensurate sines on (arc length, fraction across the band) —
+    smooth, continuous around the ring and byte-deterministic. Land above zero
+    is continent, below is sea; cloud above ~0.9 is weather. An Orbital's plates
+    are made, not grown, so the continents are allowed to run across the band
+    in long bars the way the novels' plates do.
+    """
+    land = (math.sin(arc * 0.071 + 1.7 * math.sin(arc * 0.019))
+            + 0.55 * math.sin(arc * 0.043 + across * 4.1 + 0.6)
+            + 0.35 * math.sin(across * 9.0 - arc * 0.013))
+    cloud = (math.sin(arc * 0.17 + across * 7.0 + 2.0 * math.sin(arc * 0.037))
+             + 0.7 * math.sin(arc * 0.29 - across * 5.0))
+    return land, cloud
+
+
+def _culture_face_ink(rank: int, x: int, y: int, arc: float, across: float, day: float):
+    """Ink for one pixel of the inner (habitable) face.
+
+    ``day`` is the cosine of the sun's angle from the plate's zenith: above
+    zero the plate is in daylight. A single ``BAYER_8x8`` read decides both the
+    shading and the surface mix — the lowest ranks take black toward the
+    terminator, the rest split between the surface's two inks (``pride``'s
+    rule; a second read of the tile is perfectly correlated with the first).
+    """
+    black, white, blue, green, yellow = (SPECTRA6[n] for n in ("black", "white", "blue", "green", "yellow"))
+    land, cloud = _culture_terrain(arc, across)
+    if day <= 0.0:
+        # Night: dark plates, lit by their own cities.
+        if land > 0.15 and position_noise(x, y) < 26:
+            return yellow
+        return black
+    shade = max(0.0, 1.0 - day * 2.2)
+    cut = shade * 64
+    if rank < cut:
+        return black
+    share = (rank - cut) / max(1.0, 64 - cut)
+    if cloud > 1.25:
+        return white
+    if land > 0.25:
+        return yellow if share < 0.12 else green
+    return white if share < 0.1 else blue
+
+
+def _culture_paint_orbital(image: Image.Image) -> None:
+    """The Orbital, per pixel: far arc shows the inner face, near arc the hull.
+
+    For a screen pixel the ring coordinates follow in closed form. With the
+    ring's centreline an ellipse of half-height ``h = R k sin`` at ``u`` and the
+    band stacked ``W`` px above it, a pixel is on the far arc when ``v`` lies in
+    ``[-h - W, -h]`` and on the near arc when it lies in ``[h - W, h]``. The near
+    arc is tested first, so where the two overlap at the ends of the ellipse the
+    hull correctly passes in front of the face.
+    """
+    cx, cy, radius = _CULTURE_ORBITAL
+    k, band = _CULTURE_ORBITAL_K, _CULTURE_ORBITAL_W
+    px = image.load()
+    width, height = image.size
+    black, white, blue = SPECTRA6["black"], SPECTRA6["white"], SPECTRA6["blue"]
+    pad = band + 6
+    for y in range(max(0, int(cy - radius * 0.5 - pad)), min(height, int(cy + radius * 0.5 + pad))):
+        row = BAYER_8x8[y % 8]
+        for x in range(max(0, cx - radius - pad), min(width, cx + radius + pad)):
+            u, v = _culture_ring_uv(x - cx, y - cy)
+            if abs(u) >= radius:
+                continue
+            s = math.sqrt(1.0 - (u / radius) ** 2)
+            h = radius * k * s
+            rank = row[x % 8]
+            if h - band <= v <= h:
+                # Near arc: the hull, lit where it faces the sun.
+                theta = math.atan2(s, u / radius)
+                across = (h - v) / band
+                lit = -math.cos(theta - _CULTURE_NOON)
+                edge = across < 0.09 or across > 0.91
+                if edge:
+                    px[x, y] = white if lit > 0.05 else blue
+                    continue
+                seam = int(theta * radius / 9.0) != int((theta * radius + 1.0) / 9.0)
+                if lit > 0 and not seam and rank < lit * 0.42 * 64:
+                    px[x, y] = white
+                else:
+                    px[x, y] = black
+                continue
+            if -h - band <= v <= -h:
+                # Far arc: the inner face, the habitable surface looking back.
+                theta = math.atan2(-s, u / radius)
+                across = (-h - v) / band
+                day = math.cos(theta - _CULTURE_NOON)
+                if across < 0.07 or across > 0.93:
+                    # The rim walls: lit bright on the day side, faint at night.
+                    px[x, y] = white if day > 0 else blue
+                    continue
+                px[x, y] = _culture_face_ink(rank, x, y, theta * radius, across, day)
+
+
+def _culture_plate_theta(clock: float) -> float:
+    """Ring angle of the plate whose local time is ``clock`` (fraction of a day)."""
+    return _CULTURE_NOON + (clock - 0.5) * 2.0 * math.pi
+
+
+def _culture_paint_marker(image: Image.Image, draw: ImageDraw.ImageDraw,
+                          clock: float, plate: str) -> tuple[int, int]:
+    """Mark the plate whose local time is now, with a leader out to its name.
+
+    Returns the marker's screen position (used by the tests). The leader runs
+    radially away from the ring's centre so it never crosses the band.
+    """
+    cx, cy, _ = _CULTURE_ORBITAL
+    theta = _culture_plate_theta(clock)
+    mx, my = _culture_ring_point(theta)
+    dx, dy = mx - cx, my - cy
+    norm = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / norm, dy / norm
+    if mx + ux * 30 < _CULTURE_TEXT_X[1] + 10:
+        # Near the left end the radial leader would point into the quote, so
+        # it drops straight down instead and the label hangs below the ring.
+        ux, uy = 0.0, 1.0
+    ex, ey = mx + ux * 30, my + uy * 30
+    yellow, black = SPECTRA6["yellow"], SPECTRA6["black"]
+    draw.line([(mx, my), (ex, ey)], fill=yellow, width=1)
+    draw.ellipse((mx - 5, my - 5, mx + 5, my + 5), outline=black, width=3)
+    draw.ellipse((mx - 4, my - 4, mx + 4, my + 4), outline=yellow, width=2)
+    font = load_font([SHARETECHMONO_REGULAR, SPACEMONO_REGULAR, *META_FONT_CANDIDATES], size=12)
+    label = plate.upper()
+    tw = draw.textlength(label, font=font)
+    lx = ex - tw / 2 if ux == 0.0 else (ex + 4 if dx >= 0 else ex - 4 - tw)
+    # Never into the signal column: near the ring's left end the leader points
+    # at the quote, so the label is held at the column's edge instead.
+    lx = max(_CULTURE_TEXT_X[1] + 12, min(image.size[0] - 8 - tw, lx))
+    ly = ey if ux == 0.0 else ey - 7
+    draw.rectangle((lx - 2, ly, lx + tw + 2, ly + 14), fill=black)
+    draw.text((lx, ly), label, font=font, fill=yellow)
+    return round(mx), round(my)
+
+
+def _culture_paint_ships(image: Image.Image) -> None:
+    """A GSV and two escorts crossing the dark above the Orbital.
+
+    A General Systems Vehicle is kilometres long and wears its field like a
+    skin, so it reads as a pale tapered hull inside a blue bloom — one mask,
+    one bloom, the shape ``abyssal``'s jellyfish use, so the hull and its field
+    share a single continuous halo.
+    """
+    mask = Image.new("L", image.size, 0)
+    md = ImageDraw.Draw(mask)
+    for (x0, y0, length, girth) in _CULTURE_SHIPS:
+        md.polygon([(x0, y0), (x0 + girth * 2, y0 - girth), (x0 + length - girth * 3, y0 - girth),
+                    (x0 + length, y0), (x0 + length - girth * 3, y0 + girth), (x0 + girth * 2, y0 + girth)],
+                   fill=255)
+    paint_neon_mask(image, mask, SPECTRA6["white"], SPECTRA6["blue"],
+                    radius=3, gamma=1.5, cap=0.55, ground=_culture_ground())
+    mask.close()
+
+
+def _culture_paint_marain(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The matched phrase written out again, in Marain, under the Orbital."""
+    x0, y0, x1, y1 = _CULTURE_MARAIN_RECT
+    white, blue = SPECTRA6["white"], SPECTRA6["blue"]
+    small = load_font([SHARETECHMONO_REGULAR, SPACEMONO_REGULAR, *META_FONT_CANDIDATES], size=12)
+    label = "THE HOUR, IN MARAIN"
+    draw.text((x0, y0), label, font=small, fill=white)
+    draw.line([(x0 + draw.textlength(label, font=small) + 8, y0 + 8), (x1, y0 + 8)], fill=blue, width=1)
+    phrase = (quote_row.get("matched_text") or "").strip()
+    if not phrase:
+        return
+    pitch, step = _CULTURE_MARAIN_PITCH, _CULTURE_MARAIN_STEP
+    glyph = pitch * 2
+    cols = max(1, (x1 - x0 - glyph) // step + 1)
+    rows = _marain_layout(phrase, cols)
+    row_step = glyph + 16
+    top = y0 + 28
+    max_rows = max(1, (y1 - top - glyph) // row_step + 1)
+    mask = Image.new("L", image.size, 0)
+    md = ImageDraw.Draw(mask)
+    block_h = min(len(rows), max_rows) * row_step - (row_step - glyph)
+    top += max(0, (y1 - top - block_h) // 2)
+    for r, codes in enumerate(rows[:max_rows]):
+        width_px = (len(codes) - 1) * step + glyph
+        x = x0 + max(0, (x1 - x0 - width_px) // 2)
+        for code in codes:
+            if code is not None:
+                _marain_draw_glyph(md, x, top + r * row_step, code, pitch, 255, stroke=3, dot=2)
+            x += step
+    paint_neon_mask(image, mask, white, blue, radius=3, gamma=1.5, cap=0.6,
+                    ground=_culture_ground())
+    mask.close()
+
+
+def _culture_paint_signal(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The signal header, the quote as its body, and the relay line.
+
+    Chrome text is white or yellow, never blue: panel blue on black is the
+    lowest-contrast pair after red, and small mono type in it disappears.
+    Blue is kept for the rules and the blooms, which are not asked to be read.
+    """
+    white, yellow, green, blue, black = (SPECTRA6[n] for n in ("white", "yellow", "green", "blue", "black"))
+    sig = _culture_signal(quote_row)
+    x0, x1 = _CULTURE_TEXT_X
+    mono = [SHARETECHMONO_REGULAR, SPACEMONO_REGULAR, *META_FONT_CANDIDATES]
+    y = _CULTURE_HEADER_Y
+    font, text = fit_text_to_width(
+        draw, f"[{sig['channel']}, {sig['level']}, tra. @{sig['stamp']}]", mono, 15, x1 - x0, floor=11)
+    draw.text((x0, y), text, font=font, fill=white)
+    y += 24
+    for prefix, name, ink in (("x", sig["from"], yellow), ("o", sig["to"], white)):
+        font, text = fit_text_to_width(draw, prefix + name, mono, 19, x1 - x0, floor=12)
+        draw.text((x0, y), text, font=font, fill=ink)
+        y += 25
+    draw.line([(x0, _CULTURE_RULE_Y), (x0 + 64, _CULTURE_RULE_Y)], fill=blue, width=2)
+
+    prose, hot, _ = wrap_quote_into_masks(
+        draw, image.size, quote_row, _CULTURE_QUOTE_RECT, theme="culture",
+        font_max=34, font_min=14, line_height_mult=1.3, align="left",
+    )
+    image.paste(white, (0, 0), prose.point(lambda v: 255 if v > 128 else 0))
+    # The drone's aura: a yellow core wrapped in a green field. Only ever lands
+    # on black, so the prose beside it is never eaten.
+    paint_neon_mask(image, hot, yellow, green, radius=3, gamma=1.7, cap=0.55,
+                    ground=frozenset({black}), tile=BAYER_8x8)
+    prose.close()
+    hot.close()
+
+    author = (quote_row.get("author") or "").strip()
+    title = (quote_row.get("title") or fallback_title(quote_row) or "").strip()
+    credit = " · ".join(p for p in (author, title) if p)
+    draw.line([(x0, _CULTURE_FOOTER_Y - 8), (x0 + 64, _CULTURE_FOOTER_Y - 8)], fill=blue, width=2)
+    small = load_font(mono, size=12)
+    if not credit:
+        draw.text((x0, _CULTURE_FOOTER_Y), "[signal ends]", font=small, fill=white)
+        return
+    draw.text((x0, _CULTURE_FOOTER_Y), "RELAYED FROM THE ARCHIVE", font=small, fill=yellow)
+    body = [JURA_SEMIBOLD, *META_FONT_BOLD_CANDIDATES]
+    font, text = fit_text_to_width(draw, credit, body, 17, x1 - x0, floor=11)
+    draw.text((x0, _CULTURE_FOOTER_Y + 16), text, font=font, fill=white)
+
+
+def _culture_paint_chrome(draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The Orbital's name, set under the ring."""
+    sig = _culture_signal(quote_row)
+    white, yellow = SPECTRA6["white"], SPECTRA6["yellow"]
+    cx, cy, radius = _CULTURE_ORBITAL
+    small = load_font([SHARETECHMONO_REGULAR, SPACEMONO_REGULAR, *META_FONT_CANDIDATES], size=12)
+    name = load_font([JURA_BOLD, *META_FONT_BOLD_CANDIDATES], size=18)
+    y = cy + int(radius * _CULTURE_ORBITAL_K) + 42
+    draw.text((cx, y), f"{sig['orbital']} Orbital", font=name, fill=white, anchor="ma")
+    draw.text((cx, y + 24), "ONE ROTATION PER DAY", font=small, fill=yellow, anchor="ma")
+
+
+def render_culture_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """A Mind's signal beside the Orbital it concerns (see the section comment)."""
+    clock = _culture_clock(time_str)
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["black"])
+    draw = ImageDraw.Draw(image)
+    _culture_paint_stars(image)
+    _culture_paint_ships(image)
+    _culture_paint_orbital(image)
+    _culture_paint_marker(image, draw, clock, _culture_signal(quote_row)["plate"])
+    _culture_paint_chrome(draw, quote_row)
+    _culture_paint_marain(image, draw, quote_row)
+    _culture_paint_signal(image, draw, quote_row)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+# -- orbital: the Arch from the plate --------------------------------------------
+# A custom frame, standing on one of the Orbital's plates and looking up. The
+# rest of the ring rises from both horizons and meets overhead — the Arch — and
+# the page is lit by where the sun is in this plate's day.
+#
+# **The Arch is the clock.** A point a fraction ``f`` of the way round the ring
+# keeps a local time ``f`` of a day ahead of ours, so the Arch carries every
+# hour at once: near the horizons it shares our time, and the zenith, halfway
+# round, is twelve hours away. Each pixel of the band is lit or dark by its own
+# local time, which makes the pattern a 24-hour dial nobody has to be taught to
+# read — at noon the Arch is lit at its feet and dark overhead; at midnight the
+# zenith burns in daylight across a black sky and the feet are dark. Both halves
+# of that are Banks's own image. The sky follows the hour too: blue by day with
+# the sun on a path offset from the Arch (an Orbital is tilted to its star
+# precisely so the far side does not eclipse noon), a warm band at the horizon
+# around dawn and dusk, and stars at night.
+#
+# **The Arch narrows as it rises**, because it recedes: a point ``phi`` round
+# the ring is ``2R sin(phi/2)`` away, so its apparent width falls as
+# ``1 / sin(phi/2)`` — thick where it leaves the ground, a thread at the zenith.
+#
+# The quote sits on a card floating in the sky under the Arch — white with dark
+# type by day, black with white type and the drone-aura phrase by night, so it
+# is legible against either sky rather than tuned for one.
+_ORBITAL_HORIZON = 318
+_ORBITAL_ARCH = (400, 474, 300)            # centre x, semi-axis a, semi-axis b
+_ORBITAL_ARCH_PHI0 = math.radians(44)      # ring angle where the Arch meets the ground
+_ORBITAL_ARCH_T_APEX = 0.03                # band width at the zenith, in radius units
+_ORBITAL_CARD = (120, 102, 680, 330)
+_ORBITAL_QUOTE_PAD = (26, 34, 26, 40)       # left, top, right, bottom inside the card
+_ORBITAL_STAR_SEED = 0x0B17A1
+_ORBITAL_STAR_COUNT = 420
+
+
+def _orbital_sun(clock: float) -> float:
+    """Cosine of the sun's angle from the zenith: 1 at noon, -1 at midnight."""
+    return math.cos(2.0 * math.pi * (clock - 0.5))
+
+
+def _orbital_period(clock: float) -> str:
+    """``"day"``, ``"twilight"`` or ``"night"`` for the plate's sky."""
+    sun = _orbital_sun(clock)
+    if sun > 0.2:
+        return "day"
+    if sun > -0.2:
+        return "twilight"
+    return "night"
+
+
+def _orbital_ramp_mask(width: int, height: int, density, *, jitter: bool = True,
+                       column=None) -> Image.Image:
+    """An ``L`` mask, 255 where an ordered dither of ``density(y)`` is lit.
+
+    Built with image operations rather than a per-pixel loop — a whole sky is a
+    quarter of a million pixels. The row densities become a gradient image, the
+    ``BAYER_8x8`` ranks a tiled threshold image, and one saturating subtract
+    compares them. ``jitter`` perturbs the threshold with a positional hash, the
+    ``bakelite`` moulding lesson: an unjittered ramp across a large field lays a
+    visible dot lattice.
+    """
+    grad = Image.new("L", (1, height))
+    grad.putdata([max(0, min(255, round(density(y) * 256))) for y in range(height)])
+    grad = grad.resize((width, height), Image.Resampling.NEAREST)
+    if column is not None:
+        # A separable horizontal weight, multiplied in at C speed.
+        cols = Image.new("L", (width, 1))
+        cols.putdata([max(0, min(255, round(column(x) * 255))) for x in range(width)])
+        grad = ImageChops.multiply(grad, cols.resize((width, height), Image.Resampling.NEAREST))
+    thresh = _orbital_threshold(width, height, jitter)
+    return ImageChops.subtract(grad, thresh).point(lambda v: 255 if v > 0 else 0)
+
+
+@functools.lru_cache(maxsize=4)
+def _orbital_threshold(width: int, height: int, jitter: bool) -> Image.Image:
+    """The tiled (optionally jittered) ``BAYER_8x8`` threshold image.
+
+    Quote- and clock-independent, and asked for up to five times a frame, so it
+    is built once per geometry. Bounded, since only the canonical sky size is
+    ever requested (frames compose at 800x480 and downsample). Callers only
+    read it.
+    """
+    tile = Image.new("L", (8, 8))
+    tile.putdata([BAYER_8x8[y][x] * 4 + 2 for y in range(8) for x in range(8)])
+    thresh = Image.new("L", (width, height))
+    for ty in range(0, height, 8):
+        for tx in range(0, width, 8):
+            thresh.paste(tile, (tx, ty))
+    if jitter:
+        noise = _tarot_noise(width, height, _ORBITAL_STAR_SEED).point(lambda v: v // 8)
+        thresh = ImageChops.add(thresh, noise, offset=-16)
+    return thresh
+
+
+def _orbital_paint_sky(image: Image.Image, clock: float) -> None:
+    """Day blue, twilight glow, or night and stars, above the horizon."""
+    width = image.size[0]
+    horizon = _ORBITAL_HORIZON
+    sky = image.crop((0, 0, width, horizon))
+    period = _orbital_period(clock)
+    white, blue, black, red, yellow = (SPECTRA6[n] for n in ("white", "blue", "black", "red", "yellow"))
+    if period == "day":
+        sky.paste(blue, (0, 0, width, horizon))
+        # Paler toward the horizon, where the eye looks through more air.
+        sky.paste(white, (0, 0), _orbital_ramp_mask(width, horizon, lambda y: 0.18 + 0.5 * (y / horizon) ** 1.6))
+    else:
+        sky.paste(black, (0, 0, width, horizon))
+        rng = random.Random(_ORBITAL_STAR_SEED)
+        spx = sky.load()
+        for _ in range(_ORBITAL_STAR_COUNT if period == "night" else _ORBITAL_STAR_COUNT // 4):
+            x, y = rng.randrange(width), rng.randrange(horizon)
+            roll = rng.random()
+            if y < horizon * (0.95 if period == "night" else 0.45):
+                spx[x, y] = yellow if roll < 0.07 else blue if roll < 0.2 else white
+        # A navy haze toward the horizon (deeper and higher at twilight).
+        reach = 0.45 if period == "twilight" else 0.25
+        sky.paste(blue, (0, 0), _orbital_ramp_mask(
+            width, horizon, lambda y: max(0.0, (y / horizon - (1 - reach)) / reach) * 0.55))
+        if period == "twilight":
+            # The warm band, strongest over the sun's side of the sky: red
+            # rising into a thinner gold edge at the horizon itself.
+            east_west = math.sin(2.0 * math.pi * (clock - 0.5))
+            sun_x = 520 + 250 * east_west
+            near_sun = lambda x: max(0.25, 1.0 - abs(x - sun_x) / 620.0)  # noqa: E731
+            sky.paste(red, (0, 0), _orbital_ramp_mask(
+                width, horizon, lambda y: max(0.0, (y / horizon - 0.66) / 0.34) ** 1.3 * 0.85,
+                column=near_sun))
+            sky.paste(yellow, (0, 0), _orbital_ramp_mask(
+                width, horizon, lambda y: max(0.0, (y / horizon - 0.84) / 0.16) ** 1.5 * 0.6,
+                column=near_sun))
+    image.paste(sky, (0, 0))
+
+
+def _orbital_sun_xy(clock: float) -> tuple[int, int] | None:
+    """Where the sun stands, or ``None`` when it is below the horizon.
+
+    Its path is offset to the right of the Arch's apex — an Orbital is tilted to
+    its star precisely so that the far side of the ring does not eclipse noon.
+    """
+    sun = _orbital_sun(clock)
+    if sun <= 0.02:
+        return None
+    east_west = math.sin(2.0 * math.pi * (clock - 0.5))
+    x = 520 + 250 * east_west
+    y = _ORBITAL_HORIZON - 255 * sun ** 0.45
+    return round(x), round(y)
+
+
+def _orbital_paint_sun(image: Image.Image, clock: float) -> None:
+    pos = _orbital_sun_xy(clock)
+    if pos is None:
+        return
+    x, y = pos
+    mask = Image.new("L", image.size, 0)
+    ImageDraw.Draw(mask).ellipse((x - 11, y - 11, x + 11, y + 11), fill=255)
+    glow = SPECTRA6["yellow"] if _orbital_period(clock) == "day" else SPECTRA6["red"]
+    paint_neon_mask(image, mask, SPECTRA6["white"], glow, radius=6, gamma=1.4, cap=0.7,
+                    ground=frozenset({SPECTRA6["blue"], SPECTRA6["white"], SPECTRA6["black"]}))
+    mask.close()
+
+
+def _orbital_arch_phi(alpha: float) -> float:
+    """Ring angle seen at elliptical angle ``alpha`` (``pi`` = left foot, 0 = right)."""
+    return _ORBITAL_ARCH_PHI0 + (1.0 - alpha / math.pi) * (2.0 * math.pi - 2.0 * _ORBITAL_ARCH_PHI0)
+
+
+def _orbital_arch_width(phi: float) -> float:
+    """Band width in radius units: ``1 / sin(phi/2)`` perspective falloff."""
+    return _ORBITAL_ARCH_T_APEX / max(0.05, math.sin(phi / 2.0))
+
+
+def _orbital_arch_day(clock: float, phi: float) -> float:
+    """Sun-angle cosine at the plate ``phi`` round the ring: its local noon is 1."""
+    return math.cos(2.0 * math.pi * (clock + phi / (2.0 * math.pi) - 0.5))
+
+
+def _orbital_paint_arch(image: Image.Image, clock: float) -> None:
+    """The far side of the ring, each pixel lit by its own local time.
+
+    Rows are walked over only the two x-intervals the band can occupy, solved
+    in closed form from the ellipse, so the pass costs the band's area rather
+    than the sky's.
+    """
+    cx, a, b = _ORBITAL_ARCH
+    horizon = _ORBITAL_HORIZON
+    px = image.load()
+    width = image.size[0]
+    period = _orbital_period(clock)
+    black, white, blue, green, yellow = (SPECTRA6[n] for n in ("black", "white", "blue", "green", "yellow"))
+    t_max = _orbital_arch_width(_ORBITAL_ARCH_PHI0)
+    for y in range(0, horizon):
+        q = (horizon - y) / b
+        if q >= 1.0:
+            continue
+        outer = a * math.sqrt(1.0 - q * q)
+        inner_sq = (1.0 - t_max) ** 2 - q * q
+        inner = a * math.sqrt(inner_sq) if inner_sq > 0 else 0.0
+        row = BAYER_8x8[y % 8]
+        spans = ((cx - outer, cx - inner), (cx + inner, cx + outer))
+        for lo, hi in spans:
+            for x in range(max(0, int(lo) - 1), min(width, int(hi) + 2)):
+                ux = (x - cx) / a
+                rho = math.hypot(ux, q)
+                alpha = math.atan2(q, ux)
+                phi = _orbital_arch_phi(alpha)
+                t = _orbital_arch_width(phi)
+                across = (1.0 - rho) / t
+                if not 0.0 <= across <= 1.0:
+                    continue
+                day = _orbital_arch_day(clock, phi)
+                rank = row[x % 8]
+                # The rim walls, a fixed ~1.5 px at every width, so the Arch keeps
+                # its outline even where its surface is in night.
+                rim = 1.5 / (t * b)
+                if across < rim or across > 1.0 - rim:
+                    px[x, y] = white if (day > 0 or period != "night") else blue
+                    continue
+                if day > 0:
+                    ink = _culture_face_ink(rank, x, y, phi * 180.0, across, day)
+                    # Seen through our own air by day: the far side washes pale.
+                    if period == "day" and ink != white and position_noise(x, y) < 40:
+                        ink = white
+                    px[x, y] = ink
+                elif period == "day":
+                    # The far side's night, seen through a lit sky: a band of
+                    # navy a shade deeper than the blue around it.
+                    px[x, y] = black if rank < 20 else blue
+                else:
+                    px[x, y] = yellow if position_noise(x, y) < 14 and rank < 40 else black
+
+
+def _orbital_lights(x: int, y: int, below_crest: float) -> bool:
+    """A lit window: rare in open country, gathered into a few settlements that
+    sit along the hills' far slopes and thin out toward the viewer."""
+    town = math.sin(x * 0.021 + 0.7) + math.sin(x * 0.0063 + 2.9)
+    if town > 1.0 and below_crest < 46:
+        return position_noise(x, y) < 30 * (1.0 - below_crest / 46)
+    return position_noise(x, y) < 1
+
+
+def _orbital_paint_land(image: Image.Image, clock: float) -> None:
+    """The plate itself: a hazy far range and near forested hills.
+
+    By day the hills are forest green shading toward the foreground; at
+    twilight and night they are silhouettes, lit only by their settlements —
+    which stay dark at twilight, when nobody has needed a lamp yet.
+    """
+    width, height = image.size
+    horizon = _ORBITAL_HORIZON
+    period = _orbital_period(clock)
+    black, white, blue, green, yellow = (SPECTRA6[n] for n in ("black", "white", "blue", "green", "yellow"))
+    px = image.load()
+    for x in range(width):
+        far = horizon - 14 - 16 * math.sin(x * 0.011 + 0.8) - 7 * math.sin(x * 0.037 + 2.1)
+        near = horizon + 34 + 18 * math.sin(x * 0.0072 + 2.6) + 8 * math.sin(x * 0.029)
+        for y in range(int(far), height):
+            rank = BAYER_8x8[y % 8][x % 8]
+            if y < near:
+                # The far range: through haze by day, a navy silhouette by night.
+                if period == "day":
+                    px[x, y] = blue if rank < 44 else white
+                else:
+                    px[x, y] = blue if rank < 16 else black
+                continue
+            depth = (y - near) / max(1.0, height - near)
+            if period == "day":
+                # Sunlit crests fading to forest shade toward the viewer.
+                crest = y - near < 5
+                cut = 64 * (0.06 + 0.34 * depth)
+                px[x, y] = black if rank < cut else (yellow if crest and rank > 40 else green)
+            elif y - near < 1.5:
+                # A cold rim on the crest so the silhouette still reads.
+                px[x, y] = blue
+            elif period == "night" and _orbital_lights(x, y, y - near):
+                px[x, y] = yellow
+            else:
+                px[x, y] = black
+
+
+def _orbital_paint_card(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict,
+                        clock: float) -> None:
+    """The quote on a card floating under the Arch, inked for the hour."""
+    x0, y0, x1, y1 = _ORBITAL_CARD
+    white, black, blue, yellow, green = (SPECTRA6[n] for n in ("white", "black", "blue", "yellow", "green"))
+    night = _orbital_period(clock) != "day"
+    face, ink, rule = (black, white, white) if night else (white, black, black)
+    # Shadow ledge by day (the ``kanagawa`` / ``pride`` card), a blue field
+    # bloom by night — a drone's field, not a sheet of paper.
+    if night:
+        mask = Image.new("L", image.size, 0)
+        ImageDraw.Draw(mask).rounded_rectangle((x0, y0, x1, y1), radius=12, fill=255)
+        paint_neon_mask(image, mask, None, blue, radius=5, gamma=1.3, cap=0.6)
+        mask.close()
+    else:
+        draw.rounded_rectangle((x0 + 4, y0 + 4, x1 + 4, y1 + 4), radius=12, fill=black)
+    draw.rounded_rectangle((x0, y0, x1, y1), radius=12, fill=face, outline=rule, width=1)
+
+    sig = _culture_signal(quote_row)
+    mono = [SHARETECHMONO_REGULAR, SPACEMONO_REGULAR, *META_FONT_CANDIDATES]
+    small = load_font(mono, size=12)
+    header = f"{sig['plate'].upper()} PLATE · {sig['orbital'].upper()} ORBITAL"
+    draw.text((x0 + 20, y0 + 12), header, font=small, fill=ink)
+    # The header's Marain: the plate's name, as its own signage would carry it.
+    code_x = x1 - 20
+    for ch in reversed(sig["plate"].lower()):
+        code = _marain_code(ch)
+        if code is None:
+            continue
+        code_x -= 12
+        _marain_draw_glyph(draw, code_x, y0 + 12, code, 4, ink, stroke=1, dot=1)
+
+    pl, pt, pr, pb = _ORBITAL_QUOTE_PAD
+    rect = (x0 + pl, y0 + pt, x1 - pr, y1 - pb)
+    prose, hot, _ = wrap_quote_into_masks(draw, image.size, quote_row, rect, theme="orbital",
+                                          font_max=32, font_min=14, line_height_mult=1.28)
+    image.paste(ink, (0, 0), prose.point(lambda v: 255 if v > 128 else 0))
+    if night:
+        paint_neon_mask(image, hot, yellow, green, radius=3, gamma=1.7, cap=0.55,
+                        ground=frozenset({face}), tile=BAYER_8x8)
+    else:
+        image.paste(blue, (0, 0), hot.point(lambda v: 255 if v > 128 else 0))
+    prose.close()
+    hot.close()
+
+    author = (quote_row.get("author") or "").strip()
+    title = (quote_row.get("title") or fallback_title(quote_row) or "").strip()
+    credit = " · ".join(p for p in (author, title) if p)
+    if credit:
+        font, text = fit_text_to_width(draw, credit, [JURA_SEMIBOLD, *META_FONT_BOLD_CANDIDATES],
+                                       15, x1 - x0 - 48, floor=11)
+        draw.text(((x0 + x1) // 2, y1 - 26), text, font=font, fill=ink, anchor="ma")
+
+
+def render_orbital_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """The Arch from the plate, lit by the hour (see the section comment)."""
+    clock = _culture_clock(time_str)
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["black"])
+    draw = ImageDraw.Draw(image)
+    _orbital_paint_sky(image, clock)
+    _orbital_paint_sun(image, clock)
+    _orbital_paint_arch(image, clock)
+    _orbital_paint_land(image, clock)
+    _orbital_paint_card(image, draw, quote_row, clock)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+
 # ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
 # ---------------------------------------------------------------------------
@@ -27634,6 +28613,10 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_control_frame(time_str, quote_row, width, height)
     if theme == "observation":
         return render_observation_frame(time_str, quote_row, width, height)
+    if theme == "culture":
+        return render_culture_frame(time_str, quote_row, width, height)
+    if theme == "orbital":
+        return render_orbital_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)

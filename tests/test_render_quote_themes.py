@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control", "observation")
+                             "control", "observation", "culture", "orbital")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4286,3 +4286,216 @@ class TestObservationFrame:
         assert rq._observation_log_header(make_row(**self.ROW)) == "AUDIO LOG — JANE AUSTEN"
         image = self._render(row)
         assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+
+class TestCultureFrame:
+    """``culture`` — a Mind's signal beside the Orbital it concerns.
+
+    Black space; the signal header, body and relay line on the left; a tilted
+    Orbital on the right whose marked plate keeps the local time; and the
+    matched phrase again in Marain-idiom glyphs.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestCultureFrame.ROW)),
+                         *size, mode="production", theme="culture")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "culture" in rq.THEMES
+        assert "culture" in rq.THEME_ORDER
+        assert "culture" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["culture"] == 0.7
+        assert rq.theme_font_candidates("culture", "quote_regular")[0] == rq.JURA_MEDIUM
+        assert rq.theme_font_candidates("culture", "quote_bold")[0] == rq.JURA_BOLD
+        for path in (rq.JURA_REGULAR, rq.JURA_MEDIUM, rq.JURA_SEMIBOLD, rq.JURA_BOLD,
+                     rq.SHARETECHMONO_REGULAR):
+            assert pathlib.Path(path).exists(), path
+            assert (pathlib.Path(path).parent / "OFL.txt").exists(), path
+
+    @pytest.mark.parametrize("time_str,clock", [
+        ("00:00", 0.0), ("12:00", 0.5), ("06:00", 0.25), ("18:30", 18.5 / 24), ("bogus", 0.5),
+    ])
+    def test_clock_is_the_full_day(self, time_str, clock):
+        assert rq._culture_clock(time_str) == pytest.approx(clock)
+
+    def test_noon_plate_faces_the_sun_and_midnight_plate_faces_away(self):
+        """The marked plate's own sun angle equals the local clock: overhead at
+        noon (on the lit far arc), opposite at midnight (round on the hull)."""
+        noon = rq._culture_plate_theta(0.5)
+        midnight = rq._culture_plate_theta(0.0)
+        assert math.cos(noon - rq._CULTURE_NOON) == pytest.approx(1.0)
+        assert math.cos(midnight - rq._CULTURE_NOON) == pytest.approx(-1.0)
+        assert math.sin(noon) < 0, "the noon plate should be on the far arc, facing us"
+        assert math.sin(midnight) > 0, "the midnight plate should be on the near arc"
+
+    def test_marker_goes_round_once_a_day(self):
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        draw = ImageDraw.Draw(image)
+        spots = {rq._culture_paint_marker(image, draw, h / 24, "HERE") for h in range(24)}
+        assert len(spots) == 24, "every hour should put the plate somewhere new"
+        assert rq._culture_plate_theta(0.0) == pytest.approx(rq._culture_plate_theta(1.0) - 2 * math.pi)
+
+    def test_time_reaches_only_the_orbital(self):
+        """The signal column is the row's; only the ring side moves with the clock."""
+        a, b = self._render(time_str="03:00"), self._render(time_str="15:45")
+        column = (0, 0, rq._CULTURE_TEXT_X[1] + 4, 480)
+        assert pixel_bytes(a.crop(column)) == pixel_bytes(b.crop(column))
+        assert pixel_bytes(a) != pixel_bytes(b)
+
+    def test_signal_follows_the_row_and_names_two_ships(self):
+        sig = rq._culture_signal(make_row(**self.ROW))
+        assert sig == rq._culture_signal(make_row(**self.ROW))
+        assert sig["from"].split(" ", 1)[1] != sig["to"].split(" ", 1)[1]
+        other = rq._culture_signal(make_row(**{**self.ROW, "source_id": "159"}))
+        assert other != sig
+        for n in range(200):
+            s = rq._culture_signal(make_row(**{**self.ROW, "line_number": n}))
+            assert s["from"].split(" ", 1)[1] != s["to"].split(" ", 1)[1]
+
+    def test_marain_table_is_distinct_connected_glyphs(self):
+        codes = [rq._marain_code(ch) for ch in rq._MARAIN_ALPHABET]
+        assert len(set(codes)) == len(codes)
+        for code in codes:
+            assert 4 <= bin(code).count("1") <= 6
+            assert rq._marain_connected(code)
+        assert rq._marain_code("A") == rq._marain_code("a")
+        assert rq._marain_code("'") is None
+
+    def test_marain_wraps_only_at_word_gaps(self):
+        rows = rq._marain_layout("half past two", 6)
+        assert rows == [
+            [rq._marain_code(c) for c in "half"],
+            [rq._marain_code(c) for c in "past"],
+            [rq._marain_code(c) for c in "two"],
+        ]
+        assert rq._marain_layout("o'clock", 20) == [[rq._marain_code(c) for c in "oclock"]]
+        assert rq._marain_layout("", 5) == []
+
+    def test_night_face_is_dark_but_for_its_cities(self):
+        inks = {rq._culture_face_ink(r, x, y, x * 1.3, (y % 10) / 10, -0.4)
+                for r in range(64) for x in range(0, 300, 7) for y in range(0, 60, 3)}
+        assert inks == {rq.SPECTRA6["black"], rq.SPECTRA6["yellow"]}
+
+    def test_aura_never_eats_the_prose(self, monkeypatch):
+        """The matched phrase's green aura lands only on black — the white
+        prose is never overwritten."""
+        green, white = rq.SPECTRA6["green"], rq.SPECTRA6["white"]
+        qbox = rq._CULTURE_QUOTE_RECT
+        with_aura = self._render().crop(qbox)
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        without = self._render().crop(qbox)
+        assert ink_counts(without).get(green, 0) == 0
+        assert ink_counts(with_aura).get(green, 0) > 0
+        white_mask = without.convert("L").point(lambda v: 255 if v == 255 else 0)
+        under = Image.composite(with_aura, Image.new("RGB", with_aura.size, white), white_mask)
+        assert distinct_inks(under) == {white}, "aura overwrote prose"
+
+    def test_on_palette_and_deterministic(self):
+        image = self._render()
+        inks = distinct_inks(image)
+        assert inks <= set(rq.SPECTRA6.values())
+        assert {rq.SPECTRA6[n] for n in ("white", "yellow", "green", "blue", "black")} <= inks
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_unattributed_row_still_renders(self):
+        image = self._render({**self.ROW, "author": "", "title": "", "matched_text": ""})
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+
+class TestOrbitalFrame:
+    """``orbital`` — the Arch seen from one of the Orbital's plates.
+
+    The far side of the ring rises from both horizons; each part of it is lit
+    by its own local time, so the Arch is a 24-hour dial. The sky, the sun and
+    the quote card follow the hour.
+    """
+
+    ROW = TestCultureFrame.ROW
+    # The Arch's apex band, clear of the card below it.
+    APEX = (360, 12, 440, 32)
+
+    @staticmethod
+    def _render(time_str="14:30", row=None, size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestOrbitalFrame.ROW)),
+                         *size, mode="production", theme="orbital")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "orbital" in rq.THEMES
+        assert "orbital" in rq.THEME_ORDER
+        assert "orbital" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["orbital"] == 0.5
+        assert rq.theme_font_candidates("orbital", "quote_regular")[0] == rq.JURA_SEMIBOLD
+        assert rq.theme_font_candidates("orbital", "quote_bold")[0] == rq.JURA_BOLD
+
+    @pytest.mark.parametrize("time_str,period", [
+        ("12:00", "day"), ("09:00", "day"), ("00:00", "night"), ("03:30", "night"),
+        ("06:00", "twilight"), ("18:00", "twilight"),
+    ])
+    def test_sky_follows_the_hour(self, time_str, period):
+        assert rq._orbital_period(rq._culture_clock(time_str)) == period
+
+    def test_zenith_is_twelve_hours_away(self):
+        """The plate overhead is halfway round the ring: dark at our noon,
+        in full daylight at our midnight. The feet share our time."""
+        assert rq._orbital_arch_day(0.5, math.pi) == pytest.approx(-1.0)
+        assert rq._orbital_arch_day(0.0, math.pi) == pytest.approx(1.0)
+        assert rq._orbital_arch_day(0.5, 0.0) == pytest.approx(1.0)
+
+    def test_the_arch_narrows_as_it_recedes(self):
+        widths = [rq._orbital_arch_width(rq._orbital_arch_phi(a))
+                  for a in (math.pi, 0.75 * math.pi, 0.5 * math.pi)]
+        assert widths[0] > widths[1] > widths[2]
+        assert rq._orbital_arch_phi(0.0) == pytest.approx(2 * math.pi - rq._ORBITAL_ARCH_PHI0)
+
+    def test_the_apex_is_lit_at_midnight_and_dark_at_noon(self):
+        green, yellow = rq.SPECTRA6["green"], rq.SPECTRA6["yellow"]
+        midnight = distinct_inks(self._render("00:00").crop(self.APEX))
+        noon = distinct_inks(self._render("12:00").crop(self.APEX))
+        assert green in midnight, "the zenith is at local noon at our midnight — land should show"
+        assert green not in noon and yellow not in noon, "the zenith is at midnight at our noon"
+
+    def test_card_is_inked_for_the_hour(self):
+        white, black = rq.SPECTRA6["white"], rq.SPECTRA6["black"]
+        x0, y0, x1, y1 = rq._ORBITAL_CARD
+        inner = (x0 + 16, y0 + 40, x1 - 16, y1 - 40)
+        day = ink_counts(self._render("12:00").crop(inner))
+        night = ink_counts(self._render("00:00").crop(inner))
+        assert day.get(white, 0) > day.get(black, 0)
+        assert night.get(black, 0) > night.get(white, 0)
+
+    def test_sun_is_up_only_by_day_and_clear_of_the_arch(self):
+        assert rq._orbital_sun_xy(0.0) is None
+        x, y = rq._orbital_sun_xy(0.5)
+        cx, a, b = rq._ORBITAL_ARCH
+        rho = math.hypot((x - cx) / a, (rq._ORBITAL_HORIZON - y) / b)
+        assert rho < 1 - rq._orbital_arch_width(math.pi) - 0.02, "noon sun should stand below the Arch"
+
+    def test_on_palette_deterministic_and_hour_dependent(self):
+        image = self._render()
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+        assert pixel_bytes(self._render("12:00")) != pixel_bytes(self._render("00:00"))
+
+    @pytest.mark.parametrize("time_str", ["00:00", "05:50", "06:15", "12:00", "18:40", "21:00"])
+    def test_every_part_of_the_day_renders(self, time_str):
+        row = {**self.ROW, "author": "", "title": ""}
+        assert distinct_inks(self._render(time_str, row)) <= set(rq.SPECTRA6.values())

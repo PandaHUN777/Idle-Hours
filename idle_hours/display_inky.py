@@ -248,6 +248,14 @@ THEME_SATURATION: dict[str, float] = {
     # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
     # stippled bands and blooms are exactly what the gentler tier flattens.
     "observation": 0.7,
+    # The Culture — a Mind's signal in deep space beside a tilted Orbital:
+    # black ground, a stippled ring surface, green and blue blooms. Dark-ground
+    # tier, same argument as ``observation``.
+    "culture": 0.7,
+    # The Culture's Arch from a plate: a sky that is blue by day and black by
+    # night under a stippled ring. The white card and the day sky dominate
+    # most hours, so the gentler light-ground tier, like ``control``.
+    "orbital": 0.5,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler
