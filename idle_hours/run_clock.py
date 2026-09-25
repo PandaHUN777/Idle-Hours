@@ -255,6 +255,11 @@ def parse_args() -> argparse.Namespace:
         "carcosa",
         "control",
         "observation",
+        "trisolaris",
+        "biomech",
+        "codex",
+        "culture",
+        "orbital",
         "furies",
         "diags",
     ]

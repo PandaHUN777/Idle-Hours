@@ -248,6 +248,28 @@ THEME_SATURATION: dict[str, float] = {
     # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
     # stippled bands and blooms are exactly what the gentler tier flattens.
     "observation": 0.7,
+    # Liu Cixin's *The Three-Body Problem* — a black sky whose suns, their
+    # tangerine wakes and the sunlit matched phrase are all falling-density
+    # blooms or sparse stipple. Dark-ground tier, the ``nocturne`` /
+    # ``bakelite`` argument: a low saturation flattens exactly those.
+    "trisolaris": 0.7,
+    # Giger/Beksinski — a K+W airbrushed wall round a blood-red dusk and an
+    # ember-bloomed phrase on near-black. Dark-ground tier: the dithered sky
+    # and the bloom are exactly what the gentler tier flattens.
+    "biomech": 0.7,
+    # Codex Seraphinianus — cream page, black script and pen-hand prose, a
+    # full-palette plant plate. White-ground tier: the plate's inks are
+    # already native or documented two-ink mixes, and pushing saturation
+    # harder would blot the 1 px asemic script lines.
+    "codex": 0.5,
+    # The Culture — a Mind's signal in deep space beside a tilted Orbital:
+    # black ground, a stippled ring surface, green and blue blooms. Dark-ground
+    # tier, same argument as ``observation``.
+    "culture": 0.7,
+    # The Culture's Arch from a plate: a sky that is blue by day and black by
+    # night under a stippled ring. The white card and the day sky dominate
+    # most hours, so the gentler light-ground tier, like ``control``.
+    "orbital": 0.5,
     # Bacon's 1944 triptych on a black gallery wall — a cadmium-orange R+Y
     # ground, grey figures and gilt frames. Dark-ground tier, same as
     # ``observation`` / ``nocturne``: the separated orange and the orange
