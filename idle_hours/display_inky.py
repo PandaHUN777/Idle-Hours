@@ -243,6 +243,11 @@ THEME_SATURATION: dict[str, float] = {
     # chromatic-on-light profile as ``default`` / ``swiss``; the gentler tier
     # keeps the coral halo a stain rather than a fire-engine smear.
     "control": 0.5,
+    # No Code's Observation — S.A.M.'s camera feed: black space, a banded
+    # Saturn in two-ink mixes, a blue-blooming anomaly, a tangerine-haloed
+    # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
+    # stippled bands and blooms are exactly what the gentler tier flattens.
+    "observation": 0.7,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler
