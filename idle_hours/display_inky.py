@@ -248,6 +248,11 @@ THEME_SATURATION: dict[str, float] = {
     # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
     # stippled bands and blooms are exactly what the gentler tier flattens.
     "observation": 0.7,
+    # Bacon's 1944 triptych on a black gallery wall — a cadmium-orange R+Y
+    # ground, grey figures and gilt frames. Dark-ground tier, same as
+    # ``observation`` / ``nocturne``: the separated orange and the orange
+    # phrase need the push to stay cadmium rather than rust on black.
+    "furies": 0.7,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler

@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control", "observation")
+                             "control", "observation", "furies")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4286,3 +4286,189 @@ class TestObservationFrame:
         assert rq._observation_log_header(make_row(**self.ROW)) == "AUDIO LOG — JANE AUSTEN"
         image = self._render(row)
         assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+
+class TestFuriesFrame:
+    """``furies`` — Bacon's *Three Studies for Figures at the Base of a
+    Crucifixion* (1944), under glass in gilt, the quote as wall text beneath.
+
+    The triptych is painted procedurally as continuous-tone layers, each
+    separated against its own inks and stacked through a dithered alpha.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon slipped quietly away from them.",
+        matched_text="half past two",
+        author="Edith Wharton",
+        title="The House of Mirth",
+        source_id="141",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestFuriesFrame.ROW)),
+                         *size, mode="production", theme="furies")
+
+    @staticmethod
+    def _panel_box(i):
+        x = rq._FURIES_PANEL_XS[i]
+        return (x, rq._FURIES_PANEL_Y, x + rq._FURIES_PANEL_W, rq._FURIES_PANEL_Y + rq._FURIES_PANEL_H)
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "furies" in rq.THEMES
+        assert "furies" in rq.THEME_ORDER
+        assert "furies" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["furies"] == 0.7
+        assert rq.theme_font_candidates("furies", "quote_regular")[0] == (rq.LIBREFRANKLIN_VARIABLE, "Medium")
+        assert rq.theme_font_candidates("furies", "quote_bold")[0] == (rq.LIBREFRANKLIN_VARIABLE, "ExtraBold")
+        for path in (rq.LIBREFRANKLIN_VARIABLE, rq.LIBREFRANKLIN_ITALIC_VARIABLE):
+            assert pathlib.Path(path).exists(), path
+        assert (pathlib.Path(rq.LIBREFRANKLIN_VARIABLE).parent / "OFL.txt").exists()
+
+    def test_body_instance_is_pinned_off_the_axis_default(self):
+        """A variable font renders its default instance unless an instance is
+        named; the pinned Medium must differ from what a bare load gives."""
+        from PIL import ImageFont
+        pinned = rq.load_font([(rq.LIBREFRANKLIN_VARIABLE, "Medium")], size=40)
+        bare = ImageFont.truetype(rq.LIBREFRANKLIN_VARIABLE, 40)
+        glyph = "Hamburgefonts"
+
+        def ink(font):
+            img = Image.new("L", (400, 60), 0)
+            ImageDraw.Draw(img).text((0, 0), glyph, font=font, fill=255)
+            return sum(img.point(lambda v: 1 if v > 127 else 0).histogram()[1:])
+
+        assert ink(pinned) != ink(bare)
+
+    def test_a_painting_carries_no_clock(self):
+        first = pixel_bytes(self._render(time_str="14:30"))
+        for time_str in ("00:00", "03:05", "09:59", "23:45", "bogus"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_on_palette_deterministic_and_no_blue(self):
+        """Every ink but blue: the 1944 triptych has none, and the per-layer
+        separation gives error diffusion no route to it."""
+        image = self._render()
+        inks = distinct_inks(image)
+        assert inks == set(rq.SPECTRA6.values()) - {rq.SPECTRA6["blue"]}
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_triptych_is_quote_independent(self):
+        other = {**self.ROW, "display_quote": "Something else entirely at noon.",
+                 "matched_text": "noon", "author": "Anon", "title": "Other"}
+        a, b = self._render(), self._render(other)
+        for i in range(3):
+            box = self._panel_box(i)
+            assert pixel_bytes(a.crop(box)) == pixel_bytes(b.crop(box))
+
+    def test_grass_is_only_in_the_right_panel(self):
+        image = self._render()
+        green = rq.SPECTRA6["green"]
+        assert green not in distinct_inks(image.crop(self._panel_box(0)))
+        assert green not in distinct_inks(image.crop(self._panel_box(1)))
+        assert green in distinct_inks(image.crop(self._panel_box(2)))
+
+    def test_each_layer_is_separated_against_its_own_inks(self):
+        """Wherever the flesh layer lands, the panel carries only flesh inks —
+        and a single pass over the flattened panel would not have held that:
+        grey flesh sits between R+G and W+K, so error diffusion would leak
+        green (the grass's ink) into it. That leak is why the layers separate."""
+        layers = rq._furies_right_panel()
+        composed = rq._furies_compose_panel(layers)
+        flesh_rgb, flesh_alpha, flesh_inks = layers[-1]
+        mask = rq._furies_dithered_alpha(flesh_alpha)
+        under = Image.composite(composed, Image.new("RGB", composed.size, flesh_inks[0]), mask)
+        assert distinct_inks(under) <= set(flesh_inks)
+
+        flat = layers[0][0].copy()
+        for rgb, alpha, _ in layers[1:]:
+            flat = Image.composite(rgb, flat, alpha)
+        palette = [c for n, c in rq.SPECTRA6.items() if n != "blue"]
+        naive = rq.dither_image_to_palette(flat, palette)
+        naive_under = Image.composite(naive, Image.new("RGB", naive.size, flesh_inks[0]), mask)
+        leaked = set(distinct_inks(naive_under)) - set(flesh_inks)
+        assert leaked, "the naive single pass should leak non-flesh inks into the figure"
+
+    def test_ground_holds_red_and_yellow_only(self):
+        ground = rq.dither_image_to_palette(rq._furies_ground(11), rq._FURIES_GROUND_INKS)
+        inks = ink_counts(ground)
+        assert set(inks) == {rq.SPECTRA6["red"], rq.SPECTRA6["yellow"]}
+        share = inks[rq.SPECTRA6["yellow"]] / sum(inks.values())
+        assert 0.3 < share < 0.6, f"cadmium orange should be a near-even R+Y mix, got yellow {share:.2f}"
+
+    def test_dithered_alpha_is_a_true_ordered_threshold(self):
+        """Half alpha takes exactly half the cells of the 8x8 tile, zero takes
+        none and full takes all — so a smear's falling alpha becomes a falling
+        stipple, not a hard edge at 50%."""
+        for level, expected in ((0, 0), (128, 32), (255, 64)):
+            out = rq._furies_dithered_alpha(Image.new("L", (8, 8), level))
+            assert out.histogram()[255] == expected, level
+
+    def test_drag_trails_along_its_vector_unevenly(self):
+        """The drag leaves paint only downstream of the shape, and the bristle
+        striations make the trail uneven across rows rather than a flat blur."""
+        size = (120, 80)
+        alpha = Image.new("L", size, 0)
+        ImageDraw.Draw(alpha).rectangle((20, 20, 50, 60), fill=255)
+        rgb = Image.new("RGB", size, (200, 200, 200))
+        _, dragged = rq._furies_drag(rgb, alpha, 30, 0, steps=10, decay=0.9, seed=5)
+        assert dragged.crop((0, 0, 19, 80)).getbbox() is None, "paint moved upstream"
+        trail = dragged.crop((60, 20, 80, 61))
+        assert trail.getbbox() is not None, "no trail downstream"
+        column = [trail.getpixel((5, y)) for y in range(trail.height)]
+        assert len(set(column)) > 3, "trail is uniform — striations missing"
+        # The shape itself is carried at ``keep`` strength, not erased.
+        assert dragged.getpixel((35, 40)) >= int(255 * 0.9)
+
+    def test_smear_never_touches_the_prose_or_the_phrase(self, monkeypatch):
+        """Neutering the smear may only remove red pixels from the black wall
+        outside the phrase's berth: the prose and the phrase core are untouched."""
+        smeared = self._render()
+        monkeypatch.setattr(rq, "_FURIES_SMEAR_STRENGTH", 0.0)
+        clean = self._render()
+        diff = ImageChops.difference(smeared, clean)
+        assert diff.getbbox() is not None, "the phrase should carry a smear"
+        red, black = rq.SPECTRA6["red"], rq.SPECTRA6["black"]
+        a, b = smeared.load(), clean.load()
+        x0, y0, x1, y1 = diff.getbbox()
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                if a[x, y] != b[x, y]:
+                    assert a[x, y] == red and b[x, y] == black, (x, y, a[x, y], b[x, y])
+
+    def test_phrase_core_is_yellow_major_orange(self, monkeypatch):
+        monkeypatch.setattr(rq, "_FURIES_SMEAR_STRENGTH", 0.0)
+        counts = ink_counts(self._render().crop(rq._FURIES_QUOTE_RECT))
+        red, yellow = counts.get(rq.SPECTRA6["red"], 0), counts.get(rq.SPECTRA6["yellow"], 0)
+        assert red and yellow
+        assert abs(red / (red + yellow) - rq._FURIES_PHRASE_RED_RANKS / 64) < 0.06
+
+    def test_glass_reflects_on_the_paint_only(self, monkeypatch):
+        glazed = self._render()
+        monkeypatch.setattr(rq, "_furies_paint_glass", lambda image: None)
+        bare = self._render()
+        diff = ImageChops.difference(glazed, bare).getbbox()
+        assert diff is not None, "no reflection on the glass"
+        x0, y0, x1, y1 = diff
+        assert rq._FURIES_PANEL_XS[0] <= x0 and x1 <= rq._FURIES_PANEL_XS[-1] + rq._FURIES_PANEL_W
+        assert rq._FURIES_PANEL_Y <= y0 and y1 <= rq._FURIES_PANEL_Y + rq._FURIES_PANEL_H
+        # One reflection across three panes, not three separate ones.
+        for i in range(3):
+            assert pixel_bytes(glazed.crop(self._panel_box(i))) != pixel_bytes(bare.crop(self._panel_box(i)))
+
+    def test_gilt_frames_are_gold(self):
+        """The moulding's flat is yellow-major: gilt, not a second orange."""
+        image = self._render()
+        x = rq._FURIES_PANEL_XS[1]
+        y = rq._FURIES_PANEL_Y + rq._FURIES_PANEL_H // 2
+        strip = image.crop((x - rq._FURIES_FRAME + 2, y - 40, x - 1, y + 40))
+        counts = ink_counts(strip)
+        yellow = counts.get(rq.SPECTRA6["yellow"], 0)
+        assert yellow / sum(counts.values()) > 0.7
+
+    def test_missing_attribution_renders(self):
+        row = {**self.ROW, "author": "", "title": "", "source_id": ""}
+        assert distinct_inks(self._render(row)) <= set(rq.SPECTRA6.values())

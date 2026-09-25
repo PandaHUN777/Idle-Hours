@@ -134,6 +134,7 @@ THEME_ORDER: tuple[str, ...] = (
     "carcosa",
     "control",
     "observation",
+    "furies",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -1230,6 +1231,22 @@ THEMES = {
     # HUD panel. White prose, yellow matched phrase with a tangerine halo.
     # The literary-layout slots below serve only the goodnight / source-card
     # fall-through paths.
+    # Francis Bacon, *Three Studies for Figures at the Base of a Crucifixion*
+    # (1944). A custom frame (``render_furies_frame``): the triptych under glass
+    # in gilt frames on a black gallery wall — three smeared grey figures on a
+    # flat cadmium orange — and the quote as white wall text beneath, the
+    # matched phrase in the painting's orange with a red smear dragged off it.
+    # The literary-layout slots below serve only the source-card fall-through.
+    "furies": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["red"],
+        "accent": SPECTRA6["red"],
+        "ornament_dark": SPECTRA6["red"],
+        "ornament_light": SPECTRA6["yellow"],
+        "source": SPECTRA6["white"],
+    },
     "observation": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1837,6 +1854,12 @@ PLEXMONO_REGULAR = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf")
 PLEXMONO_MEDIUM = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf")
 PLEXMONO_SEMIBOLD = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf")
 PLEXMONO_BOLD = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf")
+# Libre Franklin (Impallari Type / The Libre Franklin Project Authors, OFL) —
+# a revival of Morris Fuller Benton's Franklin Gothic, the grotesque of
+# mid-century gallery wall text. Variable Weight axis (Thin..Black) with a
+# separate italic file. The wall-text face of ``furies``.
+LIBREFRANKLIN_VARIABLE = str(BASE_DIR / "fonts/libre-franklin/LibreFranklin-Variable.ttf")
+LIBREFRANKLIN_ITALIC_VARIABLE = str(BASE_DIR / "fonts/libre-franklin/LibreFranklin-Italic-Variable.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3517,6 +3540,27 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         "ornament": [
             (OSWALD_VARIABLE, "Bold"),
             (ANTONIO_VARIABLE, "Bold"),
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "furies": {
+        # Libre Franklin — Franklin Gothic, the grotesque of mid-century
+        # museum wall text. Medium for the body (white strokes on black want
+        # the extra stem to survive the palette snap), ExtraBold for the
+        # matched phrase so the orange stipple and its dragged smear have
+        # stroke mass to live in. Italic for the attribution / ornament.
+        "quote_regular": [
+            (LIBREFRANKLIN_VARIABLE, "Medium"),
+            (INTER_VARIABLE, "Medium"),
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            (LIBREFRANKLIN_VARIABLE, "ExtraBold"),
+            (INTER_VARIABLE, "Bold"),
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            (LIBREFRANKLIN_ITALIC_VARIABLE, "Medium Italic"),
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
@@ -24707,6 +24751,562 @@ def render_observation_frame(time_str: str, quote_row: dict, width: int, height:
     return image
 
 
+# ---------------------------------------------------------------------------
+# furies — Francis Bacon, *Three Studies for Figures at the Base of a
+# Crucifixion* (1944)
+# ---------------------------------------------------------------------------
+# A custom frame: the triptych hung under glass in its gilt frames on a dark
+# gallery wall, and the quote set beneath it as wall text. Bacon identified
+# the three figures with the Eumenides — the Furies of Aeschylus' *Oresteia* —
+# which is where the theme takes its name:
+#
+# * **Left.** A hunched, draped figure on a table, its head bowed under a
+#   hanging mass of dark hair.
+# * **Centre.** A long-necked figure on a pedestal, eyes bound by a white
+#   bandage, the lower face opened into a mouth of teeth.
+# * **Right.** A body on stalk legs rooted in a tuft of grass, its neck
+#   stretched horizontal to end in a screaming mouth.
+#
+# All three stand against the flat cadmium orange Bacon painted on the rough
+# side of Sundeala board, with a few thin perspective lines — a table edge, a
+# floor, the corner of a room — to put them in a space.
+#
+# **The painting is painted, not drawn, and that is the technique the theme
+# introduces.** Every other raster here is either laid down in inks directly
+# (primitives, stipples, blooms) or loaded from a committed continuous-tone
+# plate and dithered (``anna_atkins``, ``grimdark``, ``letter``,
+# ``daguerreotype``, ``autochrome``, ``control``). ``furies`` builds its
+# continuous-tone image *procedurally, in memory*, as separate paint layers —
+# ground, flesh, pedestal, grass — each with its own soft alpha, then:
+#
+# 1. **Drags the wet paint.** ``_furies_drag`` pulls each figure along a vector
+#    in fading, striated steps: the bristles of the brush leave rows of
+#    different strength (a noise field held constant *along* the drag), so the
+#    trail reads as a smear rather than as a motion blur. This is Bacon's
+#    signature gesture — the swiped face, the figure half-dissolved into its
+#    ground — and the core of each figure is carried along at partial strength
+#    so the form itself is smeared, not merely ghosted.
+# 2. **Separates each layer against its own inks.** Floyd–Steinberg through
+#    Pillow's C quantiser, but per layer and per sub-palette: the orange ground
+#    against red/yellow/black, the flesh against white/black/red, the grass
+#    against green/yellow/black. A single pass over the flattened image would
+#    scatter green into grey flesh (grey sits between R+G and W+K) and white
+#    into the orange; separating first keeps every layer's error diffusion
+#    inside the inks that layer is made of — the way a printer separates
+#    plates, done here for paint.
+# 3. **Composites through a dithered alpha.** Each layer's soft alpha is
+#    thresholded against an ordered ``BAYER_8x8`` tile rather than cut at 50%,
+#    so the smeared edges become a stippled interpenetration of flesh and
+#    orange — paint dragged into paint — instead of a sticker edge.
+#
+# The flesh is modelled under an upper-left light (``_furies_shade``: a lit
+# rim where the silhouette meets its own down-right shift, a core shadow where
+# it meets its up-left one) and worked over with curved brush marks in greys
+# and a few pinks before the drag, so the marks smear with it. Mouths and the
+# bandage are painted *after* the drag, lightly dragged themselves, because
+# they are the focal points Bacon kept sharp.
+#
+# **Under glass, in gilt.** Bacon insisted on both. Each panel sits in a
+# bevelled gilt moulding (Y-major gold, a Y+W lit face top-left, an R+K shaded
+# face bottom-right) and a diagonal window reflection crosses all three panes
+# as a sparse white stipple — continuous across the gaps, because it is one
+# reflection on three sheets of glass.
+#
+# **The quote is the wall text; the matched phrase is the scream.** White
+# Libre Franklin on the black wall, and the time phrase in the painting's own
+# orange (R+Y 1:1) with a red smear dragged off it by the same striated drag
+# the figures take — the one passage on the wall that has been touched by
+# the painting. The drag trail is written only onto the black wall, so it can
+# never cut a prose glyph, and the core is laid over it so the phrase stays
+# legible.
+#
+# **A painting carries no clock**: ``time_str`` is ``del``-asserted, the
+# ``daguerreotype`` / ``autochrome`` rule. The triptych is quote-independent
+# and deterministic, so it is composed once per process and cached.
+#
+# Composed at the canonical 800x480 and NEAREST-downsampled for a non-native
+# request — the ``metro`` convention.
+# ---------------------------------------------------------------------------
+_FURIES_PANEL_W, _FURIES_PANEL_H = 212, 268
+_FURIES_PANEL_Y = 24
+_FURIES_PANEL_XS = (60, 294, 528)
+_FURIES_FRAME = 8                          # gilt moulding width
+_FURIES_QUOTE_RECT = (44, 318, 756, 440)
+_FURIES_BYLINE_BASELINE = 464
+
+_FURIES_ORANGE = (238, 116, 20)
+_FURIES_FLESH = (170, 164, 166)
+_FURIES_FLESH_LIGHT = (250, 246, 240)
+_FURIES_FLESH_SHADOW = (48, 38, 42)
+_FURIES_LINE = (104, 34, 14)               # the thin perspective lines, R+K
+_FURIES_HAIR = (38, 28, 28)
+_FURIES_MAW = (76, 12, 12)
+_FURIES_THROAT = (18, 0, 0)
+_FURIES_TOOTH = (252, 252, 250)
+
+# The ground separates against red + yellow only: with black available,
+# Floyd-Steinberg reaches for it in every deeper patch of the scumble and a
+# black speck beside a yellow one reads olive — the orange goes muddy. The
+# perspective lines, which do need black, are their own R+K layer.
+_FURIES_GROUND_INKS = [SPECTRA6["red"], SPECTRA6["yellow"]]
+_FURIES_LINE_INKS = [SPECTRA6["red"], SPECTRA6["black"]]
+_FURIES_FLESH_INKS = [SPECTRA6["white"], SPECTRA6["black"], SPECTRA6["red"]]
+_FURIES_GRASS_INKS = [SPECTRA6["green"], SPECTRA6["yellow"], SPECTRA6["black"]]
+
+# The window reflection on the glass, as (intercept, half-width, peak density)
+# of bands along y + slope * x = intercept — a shallow diagonal rising left to
+# right, so one reflection crosses all three panes as it would the glazing of
+# a triptych hung side by side.
+_FURIES_GLARE_SLOPE = 0.28
+_FURIES_GLARE = ((252, 9, 0.16), (290, 24, 0.07))
+
+# The matched phrase's orange: ranks of 64 given to red (the rest yellow) —
+# 24/64 is the yellow-major 5/8 : 3/8 split, which reads as cadmium on black
+# where the even mix goes rust. The smear's density relative to its own alpha.
+_FURIES_PHRASE_RED_RANKS = 24
+_FURIES_SMEAR_STRENGTH = 0.7
+
+_FURIES_TRIPTYCH_CACHE: dict = {}
+
+
+def _furies_shift(img: Image.Image, dx: int, dy: int) -> Image.Image:
+    """Translate without wrap-around (``ImageChops.offset`` wraps)."""
+    out = Image.new(img.mode, img.size, 0)
+    out.paste(img, (dx, dy))
+    return out
+
+
+def _furies_spline(points, closed: bool = True, samples: int = 10) -> list:
+    """Catmull-Rom through ``points`` — organic silhouettes rather than the
+    hard polygon corners a figure made of ``ImageDraw`` primitives gets."""
+    pts = list(points)
+    n = len(pts)
+    out = []
+    for i in (range(n) if closed else range(n - 1)):
+        p0 = pts[(i - 1) % n] if closed else pts[max(i - 1, 0)]
+        p1, p2 = pts[i], pts[(i + 1) % n]
+        p3 = pts[(i + 2) % n] if closed else pts[min(i + 2, n - 1)]
+        for k in range(samples):
+            t = k / samples
+            t2, t3 = t * t, t * t * t
+            out.append(tuple(
+                0.5 * (2 * p1[j] + (p2[j] - p0[j]) * t
+                       + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2
+                       + (3 * p1[j] - p0[j] - 3 * p2[j] + p3[j]) * t3)
+                for j in (0, 1)
+            ))
+    if not closed:
+        out.append(tuple(pts[-1]))
+    return out
+
+
+def _furies_tube(draw: ImageDraw.ImageDraw, points, w0: float, w1: float, fill=255) -> None:
+    """A neck or a limb: a spline swept at a width tapering ``w0`` → ``w1``."""
+    path = _furies_spline(points, closed=False, samples=8)
+    left, right = [], []
+    last = len(path) - 1
+    for i, (x, y) in enumerate(path):
+        ax, ay = path[max(i - 1, 0)]
+        bx, by = path[min(i + 1, last)]
+        length = math.hypot(bx - ax, by - ay) or 1.0
+        nx, ny = (ay - by) / length, (bx - ax) / length
+        half = (w0 + (w1 - w0) * i / last) / 2
+        left.append((x + nx * half, y + ny * half))
+        right.append((x - nx * half, y - ny * half))
+    draw.polygon(left + right[::-1], fill=fill)
+
+
+def _furies_bayer_tile(size) -> Image.Image:
+    """``BAYER_8x8`` as a 0..255 threshold image covering ``size``."""
+    tile = Image.new("L", (8, 8))
+    tile.putdata([int((BAYER_8x8[y][x] + 0.5) * 4) for y in range(8) for x in range(8)])
+    out = Image.new("L", size)
+    for y in range(0, size[1], 8):
+        for x in range(0, size[0], 8):
+            out.paste(tile, (x, y))
+    return out
+
+
+def _furies_dithered_alpha(alpha: Image.Image) -> Image.Image:
+    """A soft alpha thresholded against the ordered tile: a smeared edge
+    becomes a stippled interpenetration of the two layers, not a hard cut."""
+    return ImageChops.subtract(alpha, _furies_bayer_tile(alpha.size)).point(lambda v: 255 if v else 0)
+
+
+def _furies_noise(size, seed: int, scale: int, amp: float) -> Image.Image:
+    """Low-frequency value noise centred on 128 — a tiny seeded grid upscaled
+    BICUBIC, so the ground's scumble is C-speed and byte-deterministic."""
+    rng = random.Random(seed)
+    gw, gh = size[0] // scale + 2, size[1] // scale + 2
+    small = Image.new("L", (gw, gh))
+    small.putdata([int(128 + rng.uniform(-amp, amp)) for _ in range(gw * gh)])
+    return small.resize(size, Image.BICUBIC)
+
+
+def _furies_striations(size, angle: float, seed: int) -> Image.Image:
+    """Bristle rows for a drag along ``angle``: noise held constant along the
+    drag direction and stepping across it, like the hairs of a loaded brush."""
+    rng = random.Random(seed)
+    n = int(math.hypot(*size)) + 4
+    values, v = [], rng.uniform(90, 255)
+    for _ in range(n):
+        if rng.random() < 0.35:
+            v = rng.uniform(90, 255)
+        values.append(int(v))
+    column = Image.new("L", (1, n))
+    column.putdata(values)
+    square = column.resize((n, n), Image.NEAREST).rotate(-math.degrees(angle), resample=Image.NEAREST)
+    left, top = (n - size[0]) // 2, (n - size[1]) // 2
+    return square.crop((left, top, left + size[0], top + size[1]))
+
+
+def _furies_drag(rgb: Image.Image, alpha: Image.Image, dx: int, dy: int, *, steps: int,
+                 decay: float, seed: int, keep: float = 0.9) -> tuple[Image.Image, Image.Image]:
+    """Drag wet paint along ``(dx, dy)``.
+
+    Walks from the far end of the trail back to the figure, pasting shifted
+    copies whose alpha fades by ``decay`` per step and is modulated by the
+    bristle striations, so the trail thins unevenly into rows the way a dragged
+    brush leaves it. The figure itself goes down last at ``keep`` strength,
+    which lets the trail show through its body: the form is smeared, not just
+    shadowed by a ghost of itself. Returns the new colour layer and alpha.
+    """
+    striations = _furies_striations(rgb.size, math.atan2(dy, dx), seed)
+    out_rgb = Image.new("RGB", rgb.size, (0, 0, 0))
+    out_alpha = Image.new("L", rgb.size, 0)
+    for i in range(steps, 0, -1):
+        weight = decay ** i
+        sx, sy = round(dx * i / steps), round(dy * i / steps)
+        step_alpha = ImageChops.multiply(
+            _furies_shift(alpha, sx, sy).point(lambda v, w=weight: int(v * w)), striations)
+        out_rgb.paste(_furies_shift(rgb, sx, sy), (0, 0), step_alpha)
+        out_alpha = ImageChops.lighter(out_alpha, step_alpha)
+    core = alpha.point(lambda v: int(v * keep))
+    out_rgb.paste(rgb, (0, 0), core)
+    return out_rgb, ImageChops.lighter(out_alpha, core)
+
+
+def _furies_shade(mask: Image.Image, base, light, dark, *, offset: int = 10, blur: int = 7) -> Image.Image:
+    """Model a silhouette under an upper-left light.
+
+    Where the shape meets its own down-right shift it has an exposed upper-left
+    edge — the lit rim; where it meets its up-left shift, the lower-right core
+    shadow. Both are blurred so the modelling rolls round the form."""
+    m = mask.filter(ImageFilter.GaussianBlur(1))
+    lit = ImageChops.subtract(m, _furies_shift(m, offset, offset)).filter(ImageFilter.GaussianBlur(blur))
+    shadow = ImageChops.subtract(m, _furies_shift(m, -offset, -offset)).filter(ImageFilter.GaussianBlur(blur))
+    img = Image.new("RGB", mask.size, base)
+    img = Image.composite(Image.new("RGB", mask.size, light), img, lit)
+    return Image.composite(Image.new("RGB", mask.size, dark), img, shadow)
+
+
+def _furies_brushwork(rgb: Image.Image, mask: Image.Image, seed: int, *, count: int = 26,
+                      direction: float = 0.0) -> None:
+    """Curved brush marks inside a silhouette — light and dark greys and a
+    few pink scumbles swept roughly along ``direction``. Painted before the
+    drag so the marks smear with the flesh; the silhouette's alpha clips them."""
+    box = mask.getbbox()
+    if box is None:
+        return
+    rng = random.Random(seed)
+    draw = ImageDraw.Draw(rgb)
+    x0, y0, x1, y1 = box
+    tones = ((236, 232, 228), (214, 208, 208), (128, 116, 120), (96, 84, 88), (206, 150, 150))
+    for i in range(count):
+        cx, cy = rng.uniform(x0, x1 - 1), rng.uniform(y0, y1 - 1)
+        angle = direction + rng.uniform(-0.9, 0.9)
+        length, bend = rng.uniform(14, 34), rng.uniform(-8, 8)
+        width = rng.choice((2, 3, 4))
+        if not mask.getpixel((int(cx), int(cy))):
+            continue
+        ux, uy = math.cos(angle) * length / 2, math.sin(angle) * length / 2
+        stroke = [(cx - ux, cy - uy), (cx - math.sin(angle) * bend, cy + math.cos(angle) * bend),
+                  (cx + ux, cy + uy)]
+        draw.line(_furies_spline(stroke, closed=False), fill=tones[i % len(tones)], width=width)
+
+
+def _furies_ground(seed: int) -> Image.Image:
+    """Cadmium orange on the rough side of the board: a scumble of warmer and
+    deeper patches, and a vignette that browns toward the edges."""
+    size = (_FURIES_PANEL_W, _FURIES_PANEL_H)
+    img = Image.new("RGB", size, _FURIES_ORANGE)
+    noise = _furies_noise(size, seed, 24, 24)
+    img = Image.composite(Image.new("RGB", size, (246, 140, 28)), img,
+                          noise.point(lambda v: max(0, v - 128) * 2))
+    img = Image.composite(Image.new("RGB", size, (220, 88, 14)), img,
+                          noise.point(lambda v: max(0, 128 - v) * 2))
+    vignette = Image.new("L", size, 0)
+    vd = ImageDraw.Draw(vignette)
+    for i in range(36):
+        vd.rectangle((i, i, size[0] - 1 - i, size[1] - 1 - i), outline=int(80 * (1 - i / 36) ** 2))
+    img = Image.composite(Image.new("RGB", size, (180, 56, 12)), img, vignette)
+    # Board grain. Floyd-Steinberg over a perfectly flat colour settles into
+    # vertical worms; a seeded per-pixel jitter (``randbytes``, not
+    # ``effect_noise``, which is unseeded) breaks them into grain.
+    grain = Image.frombytes("L", size, random.Random(seed * 7919).randbytes(size[0] * size[1]))
+    img = Image.composite(Image.new("RGB", size, (255, 160, 40)), img, grain.point(lambda v: max(0, v - 200)))
+    return Image.composite(Image.new("RGB", size, (236, 84, 12)), img, grain.point(lambda v: max(0, 55 - v)))
+
+
+def _furies_teeth(draw: ImageDraw.ImageDraw, x0: int, x1: int, y: int, step: int, down: bool) -> None:
+    """A row of small triangular teeth hanging from (or rising to) ``y``."""
+    depth = 5 if down else -4
+    for tx in range(x0, x1, step):
+        draw.polygon([(tx, y), (tx + step - 1, y), (tx + (step - 1) // 2, y + depth)], fill=_FURIES_TOOTH)
+
+
+def _furies_ink(colour) -> Image.Image:
+    """A flat continuous-tone colour at panel size — a layer's paint when its
+    shape lives entirely in its alpha."""
+    return Image.new("RGB", (_FURIES_PANEL_W, _FURIES_PANEL_H), colour)
+
+
+def _furies_layer() -> Image.Image:
+    return Image.new("L", (_FURIES_PANEL_W, _FURIES_PANEL_H), 0)
+
+
+def _furies_left_panel() -> list:
+    """The hunched, draped figure on a table, hair hanging over its face."""
+    ground = _furies_ground(11)
+    lines = _furies_layer()
+    d = ImageDraw.Draw(lines)
+    d.line((0, 206, _FURIES_PANEL_W, 198), fill=255, width=1)          # floor
+    d.line((36, 176, 176, 176), fill=255, width=2)                      # table front
+    d.line((56, 166, 194, 166), fill=255, width=1)                      # table back
+    d.line((36, 176, 56, 166), fill=255, width=1)
+    d.line((176, 176, 194, 166), fill=255, width=1)
+    for x, top, bottom in ((44, 177, 250), (170, 177, 250), (190, 167, 236)):
+        d.line((x, top, x, bottom), fill=255, width=2)
+    mask = _furies_layer()
+    md = ImageDraw.Draw(mask)
+    md.polygon(_furies_spline([(50, 176), (52, 140), (66, 108), (92, 86), (114, 90), (126, 78),
+                               (150, 86), (166, 108), (170, 140), (176, 176)]), fill=255)
+    md.polygon(_furies_spline([(140, 112), (166, 104), (184, 124), (182, 150), (164, 160),
+                               (144, 146)]), fill=255)
+    _furies_tube(md, [(128, 128), (138, 152), (136, 176)], 14, 9)
+    flesh = _furies_shade(mask, _FURIES_FLESH, _FURIES_FLESH_LIGHT, _FURIES_FLESH_SHADOW)
+    _furies_brushwork(flesh, mask, 41, direction=-0.5)
+    fd = ImageDraw.Draw(flesh)
+    fd.polygon(_furies_spline([(142, 110), (166, 102), (186, 122), (184, 160), (176, 176),
+                               (168, 150), (160, 164), (156, 136), (146, 130)]), fill=_FURIES_HAIR)
+    fd.line(_furies_spline([(66, 150), (92, 118), (124, 104), (150, 108)], closed=False),
+            fill=(118, 100, 104), width=2)
+    fd.line(_furies_spline([(110, 176), (116, 150), (134, 132)], closed=False), fill=(120, 104, 108), width=2)
+    flesh, alpha = _furies_drag(flesh, mask, 10, 6, steps=8, decay=0.8, seed=21)
+    return [(ground, None, _FURIES_GROUND_INKS), (_furies_ink(_FURIES_LINE), lines, _FURIES_LINE_INKS),
+            (flesh, alpha, _FURIES_FLESH_INKS)]
+
+
+def _furies_centre_panel() -> list:
+    """The bandaged figure on its pedestal, the lower face opened into teeth."""
+    ground = _furies_ground(12)
+    lines = _furies_layer()
+    d = ImageDraw.Draw(lines)
+    d.line((0, 210, _FURIES_PANEL_W, 204), fill=255, width=1)
+    d.line((0, 40, 60, 90), fill=255, width=1)
+    d.line((_FURIES_PANEL_W, 36, 156, 88), fill=255, width=1)
+    pedestal = _furies_layer()
+    pd = ImageDraw.Draw(pedestal)
+    pd.rectangle((84, 190, 132, 248), fill=255)
+    pd.ellipse((84, 184, 132, 196), fill=255)
+    pd.ellipse((84, 242, 132, 254), fill=255)
+    stone = _furies_shade(pedestal, (70, 58, 56), (140, 120, 110), (20, 14, 14))
+    mask = _furies_layer()
+    md = ImageDraw.Draw(mask)
+    md.polygon(_furies_spline([(70, 190), (64, 160), (74, 128), (100, 118), (128, 128), (140, 158),
+                               (134, 190)]), fill=255)
+    _furies_tube(md, [(106, 132), (100, 104), (112, 80), (136, 74)], 30, 22)
+    md.polygon(_furies_spline([(122, 72), (148, 58), (176, 70), (180, 98), (168, 118), (140, 122),
+                               (124, 104)]), fill=255)
+    flesh = _furies_shade(mask, _FURIES_FLESH, _FURIES_FLESH_LIGHT, _FURIES_FLESH_SHADOW)
+    _furies_brushwork(flesh, mask, 42, direction=1.2)
+    fd = ImageDraw.Draw(flesh)
+    fd.line(_furies_spline([(78, 150), (96, 176), (126, 170)], closed=False), fill=(120, 104, 108), width=2)
+    fd.line(_furies_spline([(92, 126), (110, 140), (128, 136)], closed=False), fill=(130, 114, 118), width=1)
+    flesh, alpha = _furies_drag(flesh, mask, -8, 10, steps=7, decay=0.8, seed=22)
+    # The bandage and the mouth go down after the drag: the focal points.
+    fd, ad = ImageDraw.Draw(flesh), ImageDraw.Draw(alpha)
+    bandage = [(118, 70), (178, 76), (178, 90), (118, 86)]
+    fd.polygon(bandage, fill=(248, 246, 244))
+    ad.polygon(bandage, fill=255)
+    fd.line((124, 78, 172, 83), fill=(170, 160, 160), width=1)
+    fd.ellipse((132, 94, 170, 116), fill=_FURIES_MAW)
+    fd.ellipse((140, 100, 162, 114), fill=_FURIES_THROAT)
+    _furies_teeth(fd, 136, 168, 96, 4, down=True)
+    _furies_teeth(fd, 140, 162, 115, 4, down=False)
+    return [(ground, None, _FURIES_GROUND_INKS), (_furies_ink(_FURIES_LINE), lines, _FURIES_LINE_INKS),
+            (stone, pedestal, _FURIES_FLESH_INKS),
+            (flesh, alpha, _FURIES_FLESH_INKS)]
+
+
+def _furies_right_panel() -> list:
+    """The stalk-legged body in its tuft of grass, neck out, mouth screaming."""
+    ground = _furies_ground(13)
+    lines = _furies_layer()
+    d = ImageDraw.Draw(lines)
+    d.line((0, 196, _FURIES_PANEL_W, 206), fill=255, width=1)
+    d.line((150, 0, 150, 60), fill=255, width=1)
+    grass = _furies_layer()
+    gd = ImageDraw.Draw(grass)
+    blades = Image.new("RGB", grass.size, (40, 140, 40))
+    bd = ImageDraw.Draw(blades)
+    rng = random.Random(31)
+    gd.ellipse((110, 214, 206, 244), fill=255)
+    for _ in range(70):
+        x, h, lean = rng.uniform(112, 204), rng.uniform(8, 26), rng.uniform(-6, 6)
+        gd.line((x, 232, x + lean, 232 - h), fill=255, width=2)
+        bd.line((x, 232, x + lean, 232 - h), fill=(90, 190, 40), width=1)
+    mask = _furies_layer()
+    md = ImageDraw.Draw(mask)
+    md.polygon(_furies_spline([(122, 128), (146, 104), (182, 106), (198, 136), (190, 170), (160, 180),
+                               (130, 164)]), fill=255)
+    _furies_tube(md, [(136, 140), (104, 128), (78, 122), (58, 118)], 30, 22)
+    md.polygon(_furies_spline([(18, 104), (40, 86), (68, 92), (76, 118), (66, 146), (34, 150),
+                               (14, 132)]), fill=255)
+    _furies_tube(md, [(146, 170), (142, 196), (146, 228)], 9, 4)
+    _furies_tube(md, [(176, 172), (180, 200), (176, 228)], 9, 4)
+    flesh = _furies_shade(mask, _FURIES_FLESH, _FURIES_FLESH_LIGHT, _FURIES_FLESH_SHADOW)
+    _furies_brushwork(flesh, mask, 43, direction=0.2)
+    flesh, alpha = _furies_drag(flesh, mask, 12, -4, steps=8, decay=0.8, seed=23)
+    fd, ad = ImageDraw.Draw(flesh), ImageDraw.Draw(alpha)
+    fd.ellipse((10, 104, 58, 144), fill=_FURIES_MAW)      # the scream opens the whole face
+    ad.ellipse((10, 104, 58, 144), fill=255)
+    fd.ellipse((18, 112, 50, 138), fill=_FURIES_THROAT)
+    _furies_teeth(fd, 16, 52, 106, 5, down=True)
+    _furies_teeth(fd, 20, 48, 142, 5, down=False)
+    return [(ground, None, _FURIES_GROUND_INKS), (_furies_ink(_FURIES_LINE), lines, _FURIES_LINE_INKS),
+            (blades, grass, _FURIES_GRASS_INKS),
+            (flesh, alpha, _FURIES_FLESH_INKS)]
+
+
+def _furies_compose_panel(layers: list) -> Image.Image:
+    """Separate each paint layer against its own inks, then stack them through
+    their dithered alphas. The first layer is the ground and has no alpha."""
+    out = None
+    for rgb, alpha, inks in layers:
+        separated = dither_image_to_palette(rgb, inks)
+        out = separated if alpha is None else Image.composite(separated, out, _furies_dithered_alpha(alpha))
+    return out
+
+
+def _furies_triptych() -> list:
+    """The three separated panels, composed once per process."""
+    cached = _FURIES_TRIPTYCH_CACHE.get("panels")
+    if cached is None:
+        cached = [_furies_compose_panel(build()) for build in
+                  (_furies_left_panel, _furies_centre_panel, _furies_right_panel)]
+        _FURIES_TRIPTYCH_CACHE["panels"] = cached
+    return cached
+
+
+def _furies_paint_triptych(image: Image.Image) -> None:
+    for x, panel in zip(_FURIES_PANEL_XS, _furies_triptych()):
+        image.paste(panel, (x, _FURIES_PANEL_Y))
+
+
+def _furies_paint_frames(image: Image.Image) -> None:
+    """Bevelled gilt mouldings: gold (Y-major Y+R) on the flat, a Y+W lit face
+    on the top and left, an R+K shaded face on the bottom and right, and a
+    black rebate where the moulding meets the board."""
+    px = image.load()
+    red, yellow, white, black = (SPECTRA6[k] for k in ("red", "yellow", "white", "black"))
+    f = _FURIES_FRAME
+    for x0 in _FURIES_PANEL_XS:
+        y0 = _FURIES_PANEL_Y
+        x1, y1 = x0 + _FURIES_PANEL_W, y0 + _FURIES_PANEL_H
+        for y in range(y0 - f, y1 + f):
+            row = BAYER_8x8[y & 7]
+            for x in range(x0 - f, x1 + f):
+                if x0 <= x < x1 and y0 <= y < y1:
+                    continue
+                inset = min(x - (x0 - f), y - (y0 - f), (x1 + f - 1) - x, (y1 + f - 1) - y)
+                rank = row[x & 7]
+                if inset == f - 1:
+                    ink = black                                   # the rebate
+                elif inset <= 1 and (x - (x0 - f) == inset or y - (y0 - f) == inset):
+                    ink = white if rank < 28 else yellow          # lit face
+                elif inset <= 1:
+                    ink = black if rank < 28 else red             # shaded face
+                else:
+                    ink = red if rank < 12 else yellow            # gold flat
+                px[x, y] = ink
+
+
+def _furies_paint_glass(image: Image.Image) -> None:
+    """The window reflection on the glazing: sparse white along diagonal bands,
+    one reflection continuous across all three panes, on the paint only."""
+    px = image.load()
+    white = SPECTRA6["white"]
+    y0, y1 = _FURIES_PANEL_Y, _FURIES_PANEL_Y + _FURIES_PANEL_H
+    for x0 in _FURIES_PANEL_XS:
+        for y in range(y0, y1):
+            for x in range(x0, x0 + _FURIES_PANEL_W):
+                u = y + _FURIES_GLARE_SLOPE * x
+                for centre, half, peak in _FURIES_GLARE:
+                    d = abs(u - centre)
+                    if d < half and position_noise(x, y) < 255 * peak * (1 - d / half):
+                        px[x, y] = white
+                        break
+
+
+def _furies_paint_quote(image: Image.Image, quote_row: dict) -> None:
+    """Wall text in white, and the matched phrase in the painting's orange
+    with a red smear dragged off it — written only onto the black wall."""
+    draw = ImageDraw.Draw(image)
+    prose, hot, _ = wrap_quote_into_masks(draw, image.size, quote_row, _FURIES_QUOTE_RECT,
+                                          theme="furies", font_max=30, font_min=15,
+                                          line_height_mult=1.3)
+    black, red, yellow = SPECTRA6["black"], SPECTRA6["red"], SPECTRA6["yellow"]
+    solid_prose = prose.point(lambda v: 255 if v >= 128 else 0)
+    image.paste(SPECTRA6["white"], (0, 0), solid_prose)
+    box = hot.getbbox()
+    if box is None:
+        return
+    x0, y0, x1, y1 = box
+    trail_box = (x0, y0, min(image.width, x1 + 11), min(image.height, y1 + 9))
+    _, smear = _furies_drag(Image.new("RGB", image.size), hot, 9, 7, steps=9, decay=0.8,
+                            seed=51, keep=0.0)
+    # The smear keeps a two-pixel berth round every glyph of the phrase, so it
+    # never fills a counter or bridges two letters: it trails, it doesn't blot.
+    berth = hot.filter(ImageFilter.MaxFilter(5))
+    smear_px, hot_px, berth_px, px = smear.load(), hot.load(), berth.load(), image.load()
+    for y in range(trail_box[1], trail_box[3]):
+        row = BAYER_8x8[y & 7]
+        for x in range(trail_box[0], trail_box[2]):
+            if hot_px[x, y] >= 128:
+                # Cadmium orange, yellow-leaning so it holds on the black wall.
+                px[x, y] = red if row[x & 7] < _FURIES_PHRASE_RED_RANKS else yellow
+            elif (px[x, y] == black and berth_px[x, y] < 128
+                  and smear_px[x, y] * _FURIES_SMEAR_STRENGTH > row[x & 7] * 4 + 2):
+                px[x, y] = red
+
+
+def _furies_paint_byline(image: Image.Image, quote_row: dict) -> None:
+    draw = ImageDraw.Draw(image)
+    font = load_font([(LIBREFRANKLIN_ITALIC_VARIABLE, "Medium Italic"), *META_FONT_CANDIDATES], size=14)
+    draw_truncated_centred_byline(draw, quote_row, centre=image.width // 2,
+                                  baseline=_FURIES_BYLINE_BASELINE, max_width=image.width - 96,
+                                  font=font, fill=SPECTRA6["white"])
+
+
+def render_furies_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """Bacon's 1944 triptych under glass, the quote as wall text beneath it.
+
+    ``time_str`` is unused by design: a painting carries no clock.
+    """
+    del time_str
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["black"])
+    _furies_paint_triptych(image)
+    _furies_paint_glass(image)
+    _furies_paint_frames(image)
+    _furies_paint_quote(image, quote_row)
+    _furies_paint_byline(image, quote_row)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
 
 # ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
@@ -27634,6 +28234,8 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_control_frame(time_str, quote_row, width, height)
     if theme == "observation":
         return render_observation_frame(time_str, quote_row, width, height)
+    if theme == "furies":
+        return render_furies_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)
