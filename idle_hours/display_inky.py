@@ -248,6 +248,12 @@ THEME_SATURATION: dict[str, float] = {
     # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
     # stippled bands and blooms are exactly what the gentler tier flattens.
     "observation": 0.7,
+    # Bosch's Garden of Earthly Delights — an open triptych in two-ink oil
+    # mixes (sky, meadow, flesh, rose) on a cream banderole, with a black Hell
+    # wing lit by fire. Light-ground tier: most of the canvas is pale Paradise
+    # and Garden, and the harder tier would push the rose and flesh mixes
+    # toward poster colour.
+    "bosch": 0.5,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler
