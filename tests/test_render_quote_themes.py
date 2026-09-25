@@ -4340,6 +4340,16 @@ class TestCultureFrame:
         assert math.sin(noon) < 0, "the noon plate should be on the far arc, facing us"
         assert math.sin(midnight) > 0, "the midnight plate should be on the near arc"
 
+    @pytest.mark.parametrize("hour", range(24))
+    def test_marker_is_on_the_lit_face_by_day_and_the_hull_by_night(self, hour):
+        """The far arc (sin < 0) shows the inner face; it must hold exactly the
+        plates in daylight, or the afternoon marker lands on a black hull."""
+        side = math.sin(rq._culture_plate_theta((hour + 0.5) / 24))
+        if 6 <= hour < 18:
+            assert side < 0, f"{hour}:30 is daytime but the marker is on the hull"
+        else:
+            assert side > 0, f"{hour}:30 is night but the marker is on the lit face"
+
     def test_marker_goes_round_once_a_day(self):
         image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
         draw = ImageDraw.Draw(image)
@@ -4488,6 +4498,21 @@ class TestOrbitalFrame:
         cx, a, b = rq._ORBITAL_ARCH
         rho = math.hypot((x - cx) / a, (rq._ORBITAL_HORIZON - y) / b)
         assert rho < 1 - rq._orbital_arch_width(math.pi) - 0.02, "noon sun should stand below the Arch"
+
+    def test_sun_is_never_behind_the_card(self):
+        """Every daylight minute, the sun's disc stands clear of the quote card
+        (with a small gap), so the sky always shows it."""
+        x0, y0, x1, y1 = rq._ORBITAL_CARD
+        up = 0
+        for minute in range(1440):
+            pos = rq._orbital_sun_xy(minute / 1440)
+            if pos is None:
+                continue
+            up += 1
+            dx = max(x0 - pos[0], 0, pos[0] - x1)
+            dy = max(y0 - pos[1], 0, pos[1] - y1)
+            assert dx * dx + dy * dy >= 13 * 13, f"sun behind the card at minute {minute}: {pos}"
+        assert up > 600, "the sun should be up for most of the day"
 
     def test_on_palette_deterministic_and_hour_dependent(self):
         image = self._render()

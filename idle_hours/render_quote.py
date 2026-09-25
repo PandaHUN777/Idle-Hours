@@ -24814,7 +24814,7 @@ def render_observation_frame(time_str: str, quote_row: dict, width: int, height:
 #
 # * ``culture`` marks the plate whose local time is now. The marker travels
 #   the full ring once per 24 hours, riding the lit inner face through the day
-#   and crossing round onto the dark hull at night.
+#   and crossing round onto the hull at night.
 # * ``orbital`` paints the far side of the ring as the local clock sees it. The
 #   part of the Arch overhead is twelve hours away, so at noon the zenith is
 #   dark and the Arch is lit only where it leaves the horizons, and at midnight
@@ -25011,7 +25011,8 @@ def _marain_layout(text: str, max_cols: int) -> list[list[int | None]]:
 # traffic — a bracketed transmission line, then ``x`` (from) and ``o`` (to)
 # ship names — and the quote as its body. The matched phrase glows like a
 # drone's aura field. Right: the Orbital the signal concerns, a tilted ring
-# with a lit inner face, a night side pricked by city lights and a dark hull,
+# whose visible inner face holds exactly the plates in daylight (their cities
+# showing only where the face turns into dusk at its tips) and the hull,
 # the current plate marked; and under it the matched phrase again, in Marain.
 _CULTURE_TEXT_X = (34, 462)
 _CULTURE_HEADER_Y = 28
@@ -25022,7 +25023,10 @@ _CULTURE_ORBITAL = (632, 168, 156)       # centre x, centre y, radius
 _CULTURE_ORBITAL_K = 0.42                # minor/major axis = sin(view elevation)
 _CULTURE_ORBITAL_TILT = -0.14            # screen rotation of the ring, radians
 _CULTURE_ORBITAL_W = 24                  # band thickness on screen, px
-_CULTURE_NOON = math.radians(-40)        # ring angle of the plate at local noon
+# Ring angle of the plate at local noon: the middle of the far arc, so the lit
+# inner face we can see holds exactly the plates between 06:00 and 18:00 and
+# the marker is on the face by day and round on the hull by night.
+_CULTURE_NOON = math.radians(-90)
 _CULTURE_MARAIN_RECT = (494, 338, 780, 446)
 _CULTURE_MARAIN_PITCH = 7
 _CULTURE_MARAIN_STEP = 24                # glyph advance, px
@@ -25351,7 +25355,8 @@ def render_culture_frame(time_str: str, quote_row: dict, width: int, height: int
 # read — at noon the Arch is lit at its feet and dark overhead; at midnight the
 # zenith burns in daylight across a black sky and the feet are dark. Both halves
 # of that are Banks's own image. The sky follows the hour too: blue by day with
-# the sun on a path offset from the Arch (an Orbital is tilted to its star
+# the sun on a wide, steep path that keeps it clear of the quote card and
+# stands it below the Arch's apex at noon (an Orbital is tilted to its star
 # precisely so the far side does not eclipse noon), a warm band at the horizon
 # around dawn and dusk, and stars at night.
 #
@@ -25459,7 +25464,7 @@ def _orbital_paint_sky(image: Image.Image, clock: float) -> None:
             # The warm band, strongest over the sun's side of the sky: red
             # rising into a thinner gold edge at the horizon itself.
             east_west = math.sin(2.0 * math.pi * (clock - 0.5))
-            sun_x = 520 + 250 * east_west
+            sun_x = 400 + 380 * east_west
             near_sun = lambda x: max(0.25, 1.0 - abs(x - sun_x) / 620.0)  # noqa: E731
             sky.paste(red, (0, 0), _orbital_ramp_mask(
                 width, horizon, lambda y: max(0.0, (y / horizon - 0.66) / 0.34) ** 1.3 * 0.85,
@@ -25473,15 +25478,17 @@ def _orbital_paint_sky(image: Image.Image, clock: float) -> None:
 def _orbital_sun_xy(clock: float) -> tuple[int, int] | None:
     """Where the sun stands, or ``None`` when it is below the horizon.
 
-    Its path is offset to the right of the Arch's apex — an Orbital is tilted to
-    its star precisely so that the far side of the ring does not eclipse noon.
+    The path is wide and climbs steeply, so a low sun stands clear of the quote
+    card on either side of it rather than behind it, and the noon sun stands
+    below the Arch's apex — an Orbital is tilted to its star precisely so that
+    the far side of the ring does not eclipse noon.
     """
     sun = _orbital_sun(clock)
     if sun <= 0.02:
         return None
     east_west = math.sin(2.0 * math.pi * (clock - 0.5))
-    x = 520 + 250 * east_west
-    y = _ORBITAL_HORIZON - 255 * sun ** 0.45
+    x = 400 + 380 * east_west
+    y = _ORBITAL_HORIZON - 255 * sun ** 0.25
     return round(x), round(y)
 
 
