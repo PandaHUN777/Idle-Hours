@@ -1224,13 +1224,6 @@ THEMES = {
         "ornament_light": SPECTRA6["white"],
         "source": SPECTRA6["black"],
     },
-    # *Observation* (No Code, 2019) — the station AI's camera feed. A custom
-    # frame (``render_observation_frame``): black space, a banded Saturn with
-    # its polar hexagon and lit rings, a glowing hexagonal anomaly under a
-    # tracking reticle, and the quote as an audio-log transcript in a S.A.M.
-    # HUD panel. White prose, yellow matched phrase with a tangerine halo.
-    # The literary-layout slots below serve only the goodnight / source-card
-    # fall-through paths.
     # Francis Bacon, *Three Studies for Figures at the Base of a Crucifixion*
     # (1944). A custom frame (``render_furies_frame``): the triptych under glass
     # in gilt frames on a black gallery wall — three smeared grey figures on a
@@ -1247,6 +1240,13 @@ THEMES = {
         "ornament_light": SPECTRA6["yellow"],
         "source": SPECTRA6["white"],
     },
+    # *Observation* (No Code, 2019) — the station AI's camera feed. A custom
+    # frame (``render_observation_frame``): black space, a banded Saturn with
+    # its polar hexagon and lit rings, a glowing hexagonal anomaly under a
+    # tracking reticle, and the quote as an audio-log transcript in a S.A.M.
+    # HUD panel. White prose, yellow matched phrase with a tangerine halo.
+    # The literary-layout slots below serve only the goodnight / source-card
+    # fall-through paths.
     "observation": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -24814,9 +24814,10 @@ def render_observation_frame(time_str: str, quote_row: dict, width: int, height:
 #
 # **The quote is the wall text; the matched phrase is the scream.** White
 # Libre Franklin on the black wall, and the time phrase in the painting's own
-# orange (R+Y 1:1) with a red smear dragged off it by the same striated drag
-# the figures take — the one passage on the wall that has been touched by
-# the painting. The drag trail is written only onto the black wall, so it can
+# orange (yellow-major Y+R, 3/8 red — ``_FURIES_PHRASE_RED_RANKS``; an even
+# mix goes rust on black) with a red smear dragged off it by the same
+# striated drag the figures take — the one passage on the wall that has been
+# touched by the painting. The drag trail is written only onto the black wall, so it can
 # never cut a prose glyph, and the core is laid over it so the phrase stays
 # legible.
 #
