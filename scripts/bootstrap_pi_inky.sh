@@ -41,7 +41,12 @@ if [ ! -c /dev/spidev0.0 ]; then
   echo "/dev/spidev0.0 is missing after reboot; check dtparam=spi=on and dtoverlay=spi0-0cs" >&2
   exit 1
 fi
-if gpioinfo 2>/dev/null | grep -E 'line[[:space:]]+8:' | grep -q 'consumer='; then
+# Match the line by its name rather than its index: on a Pi 5 the header is
+# not the only gpiochip and other chips also have a "line 8". libgpiod v2
+# (Trixie) prints a claimed line as `consumer="..."`, v1 (Bookworm) as
+# `[used]`; accept either so the check cannot pass vacuously on the older
+# tool.
+if gpioinfo 2>/dev/null | grep -F '"GPIO8"' | grep -Eq 'consumer=|\[used\]'; then
   echo "GPIO8 is still claimed; the E673 driver requires manual chip select via spi0-0cs" >&2
   exit 1
 fi

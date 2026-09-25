@@ -785,8 +785,8 @@ See `ops/idle-hours.service.example`.
 
 Current service model:
 
-- runs `run_clock.py`
-- optionally calls `display_inky.py` after each render
+- runs `python -m idle_hours.run_clock --config /var/lib/idle-hours/config.toml`
+- optionally calls `display_inky.py` after each render (the appliance config enables it)
 - reads the prebuilt baked DB at `idle_hours/assets/quote_database.jsonl` (the canonical runtime input)
 - does not rebuild corpus artifacts at startup
 
@@ -815,11 +815,18 @@ sudo systemctl enable --now idle-hours.service
 sudo systemctl status idle-hours.service
 ```
 
-Before enabling the service, update these fields to match the actual account and install path on the Pi:
+Before enabling the service, update these fields to match the actual account and virtualenv on the Pi:
 
 - `User=`
-- `WorkingDirectory=`
-- `ExecStart=` (the path to `run_clock.py` and to the config file)
+- `ExecStart=` (the virtualenv's `python` and the config file path)
+
+Leave `WorkingDirectory=` and `Environment=LG_WD=` on `/var/lib/idle-hours`.
+They are not install-path settings: `lgpio` creates its button-notification
+FIFO in `LG_WD` and its Python wrapper opens it relative to the working
+directory, so the two must stay on the same sandbox-writable path or the
+button listener fails to start. The render output goes there too (the
+appliance config sets `output = "/var/lib/idle-hours/current.png"`), so the
+unit needs no write hole into your home directory.
 
 Day-to-day tuning after this — theme, quiet hours, web UI, startup
 image, etc. — is a `sudoedit /var/lib/idle-hours/config.toml` +

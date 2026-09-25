@@ -32,9 +32,9 @@ Verify:
 ```bash
 pytest
 ruff check .
-python3 run_clock.py --once --buttons-off     # one-shot render to output/current.png
-# or, with the unified CLI (v2):
-idle-hours run --once --buttons-off
+idle-hours run --once --buttons-off           # one-shot render to output/current.png
+# equivalent module form:
+python3 -m idle_hours.run_clock --once --buttons-off
 ```
 
 `pip install -e ".[dev]"` registers `idle-hours` as a console script — every

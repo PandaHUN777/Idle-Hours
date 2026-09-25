@@ -267,8 +267,10 @@ After the v2.x package restructure, three resolution rules apply:
   under `data/gutenberg/`, history / state / telemetry sidecars) anchor
   on **CWD**, not `BASE_DIR`. A `BASE_DIR`-relative output would write
   inside the installed package directory, which is not what an operator
-  wants. The systemd unit sets `WorkingDirectory=` so the appliance still
-  gets a predictable output location.
+  wants. The shipped appliance preset (`config.toml.example`) therefore
+  sets `output` to an absolute path under `/var/lib/idle-hours/`; the
+  systemd unit's `WorkingDirectory=` is the same directory, but it is
+  there for `lgpio` (see "Appliance / Pi Setup"), not to anchor outputs.
 - **Operator-supplied input paths** (`--render-script`, `--display-script`,
   `--quiet-image`, `--startup-image`) go through `path_resolution.resolve_input_path`,
   which tries CWD-relative first and falls back to `BASE_DIR`-relative when
@@ -1194,9 +1196,9 @@ All three rejections write a `mode="web_error"` telemetry entry with `status` an
 
 ### Appliance / Pi Setup
 
-- **Fresh Pi:** `bootstrap_pi_inky.sh` automates apt setup, clones the Pimoroni `inky` installer, and (with `CONTINUE_AFTER_REBOOT=1` on the second run) clones this repo and does a first render + display push.
-- **Manual Pi notes:** `pi_setup_inky_impression.md` is the long-form guide (hardware list, OS baseline, Pimoroni install, troubleshooting).
-- **Boot-time service:** `idle-hours.service.example` is a sample systemd unit that runs `run_clock.py --display-script display_inky.py --mode production` as `pi` from `/home/pi/IdleHours` under the `~/.virtualenvs/pimoroni` Python. Edit paths to match your install before copying into `/etc/systemd/system/`.
+- **Fresh Pi:** `scripts/bootstrap_pi_inky.sh` runs from a checkout. First pass: installs the apt runtime deps plus Raspberry Pi OS's `python3-lgpio` / `python3-rpi-lgpio` GPIO backend, enables I2C + SPI, and stages `dtoverlay=spi0-0cs` in the boot config, then stops for the reboot. The Spectra 6 (E673) driver opens `/dev/spidev0.0` for data but drives GPIO8 chip-select itself, and the ordinary SPI overlay claims GPIO8 in the kernel — `spi0-0cs` exposes the bus with no kernel-owned chip selects. Second pass (`CONTINUE_AFTER_REBOOT=1`): verifies `/dev/spidev0.0` exists and GPIO8 is unclaimed, creates `~/.virtualenvs/pimoroni` with `--system-site-packages` (so the venv sees the distro's `lgpio` / `RPi.GPIO` — `gpiozero` on its own ships no pin backend, and the PyPI `rpi-lgpio` needs native build tools on Trixie / Python 3.13), installs `.[pi]`, renders once and pushes once. `tests/test_pi_deployment_contract.py` pins those contracts as string fences on the script, the unit and the appliance config.
+- **Manual Pi notes:** `docs/pi_setup_inky_impression.md` is the long-form guide (hardware list, OS baseline, SPI / GPIO backend configuration, troubleshooting, the `~/.idle-hours` → `/var/lib/idle-hours` migration).
+- **Boot-time service:** `ops/idle-hours.service.example` runs `python -m idle_hours.run_clock --config %S/idle-hours/config.toml` as `pi` under the `~/.virtualenvs/pimoroni` Python. Both `WorkingDirectory=` and `Environment=LG_WD=` are `/var/lib/idle-hours` and must stay equal: `lgpio` creates its `.lgd-nfy*` button-notification FIFO in `LG_WD` while its Python wrapper opens that FIFO relative to CWD, and the state directory is the one path writable under the sandbox without a `ReadWritePaths` hole into `$HOME`. The appliance preset writes `output` there as well, which is what let the old `/home/pi/IdleHours/output` carve-out go. Only `User=` and the `ExecStart=` interpreter path are install-specific.
 - **Container (v2):** `Dockerfile` is a multi-stage OCI build — stage 1 produces wheels, stage 2 installs them into a Python 3.12-slim runtime as a non-root `idlehours` user. ARM64-first for Pi appliance use, multi-arch via `docker buildx build --platform linux/arm64,linux/amd64 -t idle-hours:2.5 .`. The Pi-only `[pi]` extra (`gpiozero` / `inky`) is **not** installed by default — that's a Pi-runtime concern. The base image renders PNGs and serves the curator UI without GPIO bindings. Run with `docker run --rm -p 8080:8080 -v idle-hours-state:/state idle-hours:2.5 idle-hours run --buttons-off --skip-preflight --web-bind 0.0.0.0:8080 --state-path /state/state.json --history-path /state/history.jsonl --telemetry-path /state/telemetry.jsonl --pidfile /state/run_clock.pid` for a headless dev instance. `.dockerignore` keeps `data/` (cached Gutenberg downloads), `output/`, `.git/`, and `tests/golden/` out of the build context so `buildx` doesn't ship multi-GB caches.
 
 ### Testing
