@@ -4283,6 +4283,71 @@ class TestTrisolarisFrame:
         chaotic = self._render(time_str=eras[False]).crop(header)
         assert pixel_bytes(stable) != pixel_bytes(chaotic)
 
+    def test_stars_stay_out_of_the_text_column(self):
+        """A star beside a letterform reads as a stroke of it, so the whole
+        column — masthead, header chrome, quote, byline, warning — is starless.
+        Excluding only the quote block left 26 stars inside the header and
+        footer text on the committed seed."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._trisolaris_paint_sky(image)
+        column = image.crop((rq._TRISOLARIS_COLUMN[0] - 10, 0, 800, 480))
+        assert distinct_inks(column) == {rq.SPECTRA6["black"]}
+        assert rq.SPECTRA6["white"] in distinct_inks(image), "the star field painted nothing"
+
+    def test_the_dish_aims_at_the_barycentre(self):
+        """The transmission is aimed where the suns dance: the dish axis from
+        its pivot passes through the projected origin of the integration."""
+        ridge = rq._trisolaris_ridge_y(rq._TRISOLARIS_DISH_X)
+        _, _, _, pivot, _, (ux, uy) = rq._trisolaris_dish_geometry(ridge)
+        tx, ty = rq._trisolaris_project((0.0, 0.0))
+        bearing = math.atan2(ty - pivot[1], tx - pivot[0])
+        assert abs(math.atan2(uy, ux) - bearing) < 1e-9
+
+    def test_rebirth_is_circular_under_the_softened_force(self):
+        """The reborn planet's speed relative to its home sun is the circular
+        speed of the force law it actually feels: v^2 / r equals the softened
+        pull. The Keplerian sqrt(m / r) is ~5% fast and starts an eccentric
+        orbit."""
+        pos = [[0.0, 0.0], [40.0, 0.0], [41.0, 0.0]]       # sun 0 is the most isolated
+        vel = [[0.1, -0.2], [0.0, 0.0], [0.0, 0.0]]
+        p, pv = rq._trisolaris_rebirth(pos, vel)
+        r = math.dist(p, pos[0])
+        v = math.dist(pv, vel[0])
+        assert abs(r - rq._TRISOLARIS_REBIRTH_RADIUS) < 1e-12
+        softened_pull = rq._TRISOLARIS_MASSES[0] * r / (r * r + rq._TRISOLARIS_PLANET_SOFTENING2) ** 1.5
+        assert abs(v * v / r - softened_pull) < 1e-9
+        assert v < math.sqrt(rq._TRISOLARIS_MASSES[0] / r) * 0.97
+
+    def test_no_planet_survives_a_pass_inside_a_sun(self, monkeypatch):
+        """The death check runs on every leapfrog step, not every sample.
+
+        Stored samples cannot show this — they are taken after the check under
+        either scheme — so watch the integrator itself: every force evaluation
+        that finds the planet inside a sun's burn radius must be followed
+        immediately by a rebirth. A sample-boundary check let one planet per
+        day pass through a sun and out again between samples.
+        """
+        events = []
+        accel, rebirth = rq._trisolaris_planet_accel, rq._trisolaris_rebirth
+
+        def watched_accel(p, pos):
+            inside = any((p[0] - x) ** 2 + (p[1] - y) ** 2 < rq._TRISOLARIS_BURN_RADIUS2 for x, y in pos)
+            events.append(inside)
+            return accel(p, pos)
+
+        def watched_rebirth(pos, vel):
+            events.append("rebirth")
+            return rebirth(pos, vel)
+
+        monkeypatch.setattr(rq, "_trisolaris_planet_accel", watched_accel)
+        monkeypatch.setattr(rq, "_trisolaris_rebirth", watched_rebirth)
+        monkeypatch.setattr(rq, "_TRISOLARIS_EPHEMERIS", None)
+        rq._trisolaris_ephemeris()
+        burns = [k for k, e in enumerate(events) if e is True]
+        assert burns, "no planet ever came inside a sun — the fence proves nothing"
+        for k in burns:
+            assert events[k + 1] == "rebirth", f"planet survived a pass inside a sun at evaluation {k}"
+
     def test_malformed_time_falls_back_to_the_start_of_the_dial(self):
         assert rq._trisolaris_index("garbage") == rq._trisolaris_index("00:00")
         image = rq.render("garbage", make_row(**self.ROW), 800, 480, mode="production", theme="trisolaris")

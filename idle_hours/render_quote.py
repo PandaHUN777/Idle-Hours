@@ -24275,9 +24275,9 @@ def render_control_frame(time_str: str, quote_row: dict, width: int, height: int
 # any of them that breaks the dance fails a test rather than a panel.
 #
 # **Composition.** The orrery owns the left of the canvas. At the foot, the
-# Red Coast Base dish stands black against the dusk on Radar Peak, its beam
-# dotted up toward the system — Ye Wenjie's transmission, sent with the Sun as
-# an amplifier. The quote sits in the dark sky on the right under a ``三体``
+# Red Coast Base dish stands in white line-work on Radar Peak, aimed at the
+# system's barycentre with a fan of wavefronts leaving its feed — Ye Wenjie's
+# transmission, sent with the Sun as an amplifier. The quote sits in the dark sky on the right under a ``三体``
 # masthead, the matched phrase lit as sunlight (a yellow core in the bakelite
 # split-band tangerine bloom), the prose plain solid white. Along
 # the foot runs the reply from the Trisolaran pacifist that closes the first
@@ -24321,7 +24321,6 @@ _TRISOLARIS_ORRERY_CLIP = (0, 0, 446, 420)
 _TRISOLARIS_COLUMN = (456, 780)        # the quote column's x extent
 _TRISOLARIS_QUOTE_RECT = (456, 118, 780, 372)
 _TRISOLARIS_DISH_X = 72                # the dish pedestal; its y comes from the ridge
-_TRISOLARIS_DISH_AIM_DEG = -52         # screen angle of the dish axis: up and to the right
 _TRISOLARIS_SUN_RADII = (6, 5, 7)
 _TRISOLARIS_STAR_SEED = 0x3B0D1E5
 _TRISOLARIS_WARNING = "DO NOT ANSWER!"
@@ -24376,7 +24375,12 @@ def _trisolaris_rebirth(pos, vel):
                       for j in range(3) if j != i)
         if nearest > best:
             best, home = nearest, i
-    speed = math.sqrt(_TRISOLARIS_MASSES[home] / _TRISOLARIS_REBIRTH_RADIUS)
+    # Circular speed under the *softened* force law the planet actually feels:
+    # v^2 / r = m r / (r^2 + eps^2)^(3/2). The Keplerian sqrt(m / r) is ~5% too
+    # fast at this radius and starts every civilization on an eccentric orbit.
+    r = _TRISOLARIS_REBIRTH_RADIUS
+    q = r * r + _TRISOLARIS_PLANET_SOFTENING2
+    speed = r * math.sqrt(_TRISOLARIS_MASSES[home] / (q * math.sqrt(q)))
     return ([pos[home][0] + _TRISOLARIS_REBIRTH_RADIUS, pos[home][1]],
             [vel[home][0], vel[home][1] + speed])
 
@@ -24427,13 +24431,16 @@ def _trisolaris_ephemeris() -> tuple:
                 vel[i][1] += half * ay[i]
             pv[0] += half * pax
             pv[1] += half * pay
-        burned = any((p[0] - s[0]) * (p[0] - s[0]) + (p[1] - s[1]) * (p[1] - s[1])
-                     < _TRISOLARIS_BURN_RADIUS2 for s in pos)
-        lost = p[0] * p[0] + p[1] * p[1] > _TRISOLARIS_LOST_RADIUS2
-        if burned or lost:
-            civilization += 1
-            p, pv = _trisolaris_rebirth(pos, vel)
-            pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+            # Checked every step, not every sample: a fast pass can dip inside
+            # the burn radius and come back out between two samples, and a
+            # sample-boundary check let one such planet per day survive.
+            burned = any((p[0] - s[0]) * (p[0] - s[0]) + (p[1] - s[1]) * (p[1] - s[1])
+                         < _TRISOLARIS_BURN_RADIUS2 for s in pos)
+            lost = p[0] * p[0] + p[1] * p[1] > _TRISOLARIS_LOST_RADIUS2
+            if burned or lost:
+                civilization += 1
+                p, pv = _trisolaris_rebirth(pos, vel)
+                pax, pay, pulls = _trisolaris_planet_accel(p, pos)
     _TRISOLARIS_EPHEMERIS = tuple(samples)
     return _TRISOLARIS_EPHEMERIS
 
@@ -24497,20 +24504,22 @@ def _trisolaris_ridge_y(x: float) -> int:
 def _trisolaris_paint_sky(image: Image.Image) -> None:
     """Black space and a seeded star field, one star in five a blue one.
 
-    Stars stay out of the quote column and its header, where a stray white
-    pixel beside a letterform reads as a stroke of it.
+    Stars stay out of the whole text column — masthead, quote, byline and
+    warning — where a stray white pixel beside a letterform reads as a stroke
+    of it. Excluding only the quote block left 26 stars inside the header and
+    footer text on the committed seed.
     """
     draw = ImageDraw.Draw(image)
     draw.rectangle((0, 0, 799, 479), fill=SPECTRA6["black"])
     px = image.load()
     rng = random.Random(_TRISOLARIS_STAR_SEED)
-    qx0, qy0, qx1, qy1 = _TRISOLARIS_QUOTE_RECT
+    column_x0 = _TRISOLARIS_COLUMN[0] - 10
     for _ in range(230):
         x = int(rng.random() * 800)
         y = int(rng.random() * 440)
         big = rng.random() < 0.1
         blue = rng.random() < 0.18
-        if qx0 - 6 <= x <= qx1 + 6 and qy0 - 30 <= y <= qy1 + 34:
+        if x >= column_x0 - 1:
             continue
         if y >= _trisolaris_ridge_y(x) - 4:
             continue
@@ -24521,33 +24530,43 @@ def _trisolaris_paint_sky(image: Image.Image) -> None:
             px[x, y] = ink
 
 
-def _trisolaris_plot_segment(px, a, b, ink, keep: float, salt: int, hot: float = 0.0) -> None:
-    """Stipple a straight segment: each pixel along it survives with
-    probability ``keep`` (a position hash, so it is deterministic), clipped to
-    the orrery. ``ink=None`` paints a cooling sun trail instead — yellow with
-    probability ``hot`` and a 3/8 yellow share in the red remainder, so even
-    the oldest wake reads as warm tangerine rather than as the panel's red,
-    which sits within a few luminance points of its black."""
-    cx0, cy0, cx1, cy1 = _TRISOLARIS_ORRERY_CLIP
-    steps = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) + 1
-    for k in range(steps):
-        t = k / steps
-        x = int(a[0] + (b[0] - a[0]) * t)
-        y = int(a[1] + (b[1] - a[1]) * t)
-        if cx0 <= x < cx1 and cy0 <= y < cy1 and _flow_stroke_hash(x, y, salt) < keep:
-            if ink is None:
-                roll = _flow_stroke_hash(x, y, salt + 100)
-                warm = roll < hot or roll < 0.375
-                px[x, y] = SPECTRA6["yellow"] if warm else SPECTRA6["red"]
-            else:
-                px[x, y] = ink
+def _trisolaris_stipple_line(px, points, *, salt: int, keep: float = 1.0, width: int = 1,
+                             ink=None, hot: float = 0.0, clip=(0, 0, 800, 480)) -> None:
+    """Stipple a polyline: each pixel along it survives with probability
+    ``keep`` (a position hash, so it is deterministic), clipped to ``clip``.
+
+    ``ink=None`` paints tangerine — yellow with probability
+    ``hot + (1 - hot) * 3/8``, red otherwise — so a warm line reads as warm
+    even at ``hot=0``, where solid red would sit within a few luminance points
+    of the panel's black. Every warm line on the frame (sun wakes, the ridge,
+    the transmission) goes through here; ``hot`` is how a sun's wake starts
+    yellow at the sun and cools toward the 3/8 floor as it ages.
+    """
+    cx0, cy0, cx1, cy1 = clip
+    warm_share = hot + (1.0 - hot) * 0.375
+    for (ax, ay), (bx, by) in zip(points, points[1:]):
+        steps = int(max(abs(bx - ax), abs(by - ay))) + 1
+        for k in range(steps + 1):
+            t = k / steps
+            x0 = int(ax + (bx - ax) * t)
+            y0 = int(ay + (by - ay) * t)
+            for dy in range(width):
+                x, y = x0, y0 + dy
+                if not (cx0 <= x < cx1 and cy0 <= y < cy1) or _flow_stroke_hash(x, y, salt) >= keep:
+                    continue
+                if ink is None:
+                    warm = _flow_stroke_hash(x, y, salt + 100) < warm_share
+                    px[x, y] = SPECTRA6["yellow"] if warm else SPECTRA6["red"]
+                else:
+                    px[x, y] = ink
 
 
 def _trisolaris_paint_orbits(image: Image.Image, index: int) -> None:
     """The last hour of each body's path, cooling as it ages.
 
-    A sun's trail is yellow for its most recent quarter and red behind that,
-    thinning toward the oldest end — a hot body leaving a cooling wake. The
+    A sun's trail starts yellow at the sun and cools to tangerine over its
+    first 40%, thinning toward the oldest end — a hot body leaving a cooling
+    wake. The
     planet's trail is sparse white, and is drawn only back to the planet's most
     recent rebirth: a new civilization begins in a new orbit, and the jump
     between the two is not a path the planet travelled.
@@ -24561,19 +24580,20 @@ def _trisolaris_paint_orbits(image: Image.Image, index: int) -> None:
         keep = 0.85 - 0.7 * age
         before, after = ephemeris[k - 1], ephemeris[k]
         for i in range(3):
-            _trisolaris_plot_segment(px, _trisolaris_project(before[0][i]),
-                                     _trisolaris_project(after[0][i]), None, keep, 40 + i,
-                                     hot=max(0.0, 1.0 - age * 2.5))
+            segment = [_trisolaris_project(before[0][i]), _trisolaris_project(after[0][i])]
+            _trisolaris_stipple_line(px, segment, salt=40 + i, keep=keep,
+                                     hot=max(0.0, 1.0 - age * 2.5), clip=_TRISOLARIS_ORRERY_CLIP)
         if before[3] == ephemeris[index][3]:
-            _trisolaris_plot_segment(px, _trisolaris_project(before[1]),
-                                     _trisolaris_project(after[1]),
-                                     SPECTRA6["white"], keep * 0.7, 47)
+            segment = [_trisolaris_project(before[1]), _trisolaris_project(after[1])]
+            _trisolaris_stipple_line(px, segment, salt=47, keep=keep * 0.7,
+                                     ink=SPECTRA6["white"], clip=_TRISOLARIS_ORRERY_CLIP)
 
 
 def _trisolaris_paint_bodies(image: Image.Image, index: int) -> None:
     """Three suns as gold blooms, then the planet as a blue world with a white
     lit limb. The suns share one mask so two near each other merge into one
-    glare rather than double-exposing."""
+    glare rather than double-exposing. The halo is confined to empty sky, so
+    it dims into the trails and the dish rather than painting over them."""
     sample = _trisolaris_ephemeris()[index]
     mask = Image.new("L", image.size, 0)
     mdraw = ImageDraw.Draw(mask)
@@ -24584,6 +24604,9 @@ def _trisolaris_paint_bodies(image: Image.Image, index: int) -> None:
         radius=6, gamma=1.3, cap=0.75, tile=BAYER_8x8,
         glow_minor=SPECTRA6["yellow"], glow_minor_share=0.375,
         core_minor=SPECTRA6["white"], core_minor_share=0.25,
+        # Only onto empty sky: a sun passing the lower-left of the sky box
+        # would otherwise stipple its halo over the dish's wavefront arcs.
+        ground=frozenset({SPECTRA6["black"], SPECTRA6["blue"]}),
     )
     x, y = _trisolaris_project(sample[1])
     cx0, cy0, cx1, cy1 = _TRISOLARIS_ORRERY_CLIP
@@ -24604,7 +24627,11 @@ def _trisolaris_dish_geometry(ridge_top: int):
     pivot = (x, ridge_top - 46)
     pedestal = [(x - 20, ridge_top + 6), (x - 7, pivot[1] + 4), (x + 7, pivot[1] + 4),
                 (x + 20, ridge_top + 6)]
-    aim = math.radians(_TRISOLARIS_DISH_AIM_DEG)
+    # Aimed at the system's barycentre — the origin of the integration's
+    # coordinates, since the initial conditions carry zero total momentum —
+    # so the transmission points where the three suns actually dance.
+    tx, ty = _trisolaris_project((0.0, 0.0))
+    aim = math.atan2(ty - pivot[1], tx - pivot[0])
     ux, uy = math.cos(aim), math.sin(aim)         # along the dish axis
     vx, vy = -uy, ux                              # across the aperture
     half, depth, back = 46, 21, 9
@@ -24617,23 +24644,6 @@ def _trisolaris_dish_geometry(ridge_top: int):
         rear.append((pivot[0] + half * s * vx + b * ux, pivot[1] + half * s * vy + b * uy))
     feed = (pivot[0] + 40 * ux, pivot[1] + 40 * uy)
     return pedestal, face, rear, pivot, feed, (ux, uy)
-
-
-def _trisolaris_warm_line(px, points, width: int, salt: int, keep: float = 1.0) -> None:
-    """A polyline in tangerine — red carrying a 3/8 yellow share, chosen per
-    pixel by position hash. Solid red is the panel's dimmest ink against its
-    black, so every warm line on this frame goes through here."""
-    for (ax, ay), (bx, by) in zip(points, points[1:]):
-        steps = int(max(abs(bx - ax), abs(by - ay))) + 1
-        for k in range(steps + 1):
-            t = k / steps
-            cx = ax + (bx - ax) * t
-            cy = ay + (by - ay) * t
-            for dy in range(width):
-                x, y = int(cx), int(cy) + dy
-                if 0 <= x < 800 and 0 <= y < 480 and _flow_stroke_hash(x, y, salt) < keep:
-                    warm = _flow_stroke_hash(x, y, salt + 1) < 0.375
-                    px[x, y] = SPECTRA6["yellow"] if warm else SPECTRA6["red"]
 
 
 def _trisolaris_paint_red_coast(image: Image.Image) -> None:
@@ -24655,11 +24665,11 @@ def _trisolaris_paint_red_coast(image: Image.Image) -> None:
     skyline = [(x, _trisolaris_ridge_y(x)) for x in range(0, 801, 4)]
     draw.polygon(skyline + [(800, 480), (0, 480)], fill=SPECTRA6["black"])
     px = image.load()
-    _trisolaris_warm_line(px, skyline, 2, 61)
+    _trisolaris_stipple_line(px, skyline, salt=61, width=2)
     for step, keep in ((11, 0.55), (24, 0.3)):
         contour = [(x, _trisolaris_ridge_y(x) + step + int(3 * math.sin(x * 0.05 + step)))
                    for x in range(0, 801, 4)]
-        _trisolaris_warm_line(px, contour, 1, 63 + step, keep)
+        _trisolaris_stipple_line(px, contour, salt=63 + step, keep=keep)
 
     ridge_top = _trisolaris_ridge_y(_TRISOLARIS_DISH_X)
     pedestal, face, rear, pivot, feed, (ux, uy) = _trisolaris_dish_geometry(ridge_top)
@@ -24683,10 +24693,10 @@ def _trisolaris_paint_red_coast(image: Image.Image) -> None:
         arc = [(feed[0] + radius * math.cos(aim - spread + 2 * spread * k / steps),
                 feed[1] + radius * math.sin(aim - spread + 2 * spread * k / steps))
                for k in range(steps + 1)]
-        _trisolaris_warm_line(px, arc, 1, 91 + ring, keep)
+        _trisolaris_stipple_line(px, arc, salt=91 + ring, keep=keep)
 
 
-def _trisolaris_paint_header(image: Image.Image, draw: ImageDraw.ImageDraw, time_str: str) -> None:
+def _trisolaris_paint_header(draw: ImageDraw.ImageDraw, time_str: str) -> None:
     """``三体`` masthead, the title, the civilization number and the era.
 
     The era carries its own glyph: three small discs for the three suns, one
@@ -24748,7 +24758,11 @@ def _trisolaris_paint_credits(draw: ImageDraw.ImageDraw, quote_row: dict, top: i
 
 
 def _trisolaris_paint_warning(draw: ImageDraw.ImageDraw) -> None:
-    """The pacifist's reply, three times along the foot."""
+    """The pacifist's reply, three times along the foot.
+
+    Solid yellow, not red: at 11px red barely clears the panel's black, and a
+    two-ink tangerine shreds a letterform that small.
+    """
     col_x0, col_x1 = _TRISOLARIS_COLUMN
     font = load_font([SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], 11)
     for repeats in (3, 2, 1):
@@ -24756,7 +24770,7 @@ def _trisolaris_paint_warning(draw: ImageDraw.ImageDraw) -> None:
         width = draw.textlength(text, font=font)
         if width <= col_x1 - col_x0:
             break
-    draw.text(((col_x0 + col_x1 - width) / 2, _TRISOLARIS_WARNING_Y), text, font=font, fill=SPECTRA6["red"])
+    draw.text(((col_x0 + col_x1 - width) / 2, _TRISOLARIS_WARNING_Y), text, font=font, fill=SPECTRA6["yellow"])
 
 
 def render_trisolaris_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
@@ -24768,7 +24782,7 @@ def render_trisolaris_frame(time_str: str, quote_row: dict, width: int, height: 
     _trisolaris_paint_red_coast(image)
     _trisolaris_paint_bodies(image, index)
     draw = ImageDraw.Draw(image)
-    _trisolaris_paint_header(image, draw, time_str)
+    _trisolaris_paint_header(draw, time_str)
     bottom = _trisolaris_paint_quote(image, draw, quote_row)
     _trisolaris_paint_credits(draw, quote_row, bottom)
     _trisolaris_paint_warning(draw)
