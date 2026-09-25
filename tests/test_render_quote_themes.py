@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control", "codex")
+                             "control", "observation", "trisolaris", "biomech", "codex")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4116,6 +4116,609 @@ class TestControlFrame:
         )
         assert text.endswith("…") and len(text) > 20
         assert rq.tracked_width(draw, text, font, tracking=1) <= 300
+
+
+class TestObservationFrame:
+    """``observation`` — S.A.M.'s camera feed, after No Code's *Observation*.
+
+    Black space, a banded Saturn with its polar hexagon and rings, a glowing
+    hexagonal anomaly under a tracking reticle, and the quote as an audio-log
+    transcript in a HUD panel. The camera number is the hour.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestObservationFrame.ROW)),
+                         *size, mode="production", theme="observation")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "observation" in rq.THEMES
+        assert "observation" in rq.THEME_ORDER
+        assert "observation" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["observation"] == 0.7
+        assert rq.theme_font_candidates("observation", "quote_regular")[0] == rq.PLEXMONO_MEDIUM
+        assert rq.theme_font_candidates("observation", "quote_bold")[0] == rq.PLEXMONO_BOLD
+        for path in (rq.PLEXMONO_REGULAR, rq.PLEXMONO_MEDIUM, rq.PLEXMONO_SEMIBOLD, rq.PLEXMONO_BOLD):
+            assert pathlib.Path(path).exists(), path
+        assert (pathlib.Path(rq.PLEXMONO_BOLD).parent / "OFL.txt").exists()
+
+    @pytest.mark.parametrize("time_str,camera", [
+        ("00:30", 12), ("12:00", 12), ("13:05", 1), ("01:59", 1), ("09:15", 9), ("bogus", 12),
+    ])
+    def test_camera_is_the_twelve_hour_clock_hour(self, time_str, camera):
+        assert rq._observation_camera(time_str) == camera
+
+    def test_two_cameras_per_module(self):
+        lit = [rq._observation_module_index(c) for c in range(1, 13)]
+        assert lit == [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+
+    def test_minute_never_reaches_the_frame(self):
+        """Hour only: the camera designation carries the hour and the matched
+        phrase carries the minute, so every minute of an hour renders
+        byte-identically for one row."""
+        first = pixel_bytes(self._render(time_str="14:00"))
+        for time_str in ("14:07", "14:30", "14:59", "02:45"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_hour_changes_the_camera(self):
+        assert pixel_bytes(self._render(time_str="14:30")) != pixel_bytes(self._render(time_str="15:30"))
+
+    def test_on_palette_deterministic_and_all_six_inks(self):
+        image = self._render()
+        inks = distinct_inks(image)
+        assert inks == set(rq.SPECTRA6.values()), "the feed should surface every ink the panel has"
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_log_number_follows_the_row_not_the_clock(self):
+        other = {**self.ROW, "source_id": "159"}
+        a = self._render()
+        b = self._render(other)
+        x0, y0, x1, _ = rq._OBSERVATION_PANEL
+        header = (x0, y0, x1, y0 + rq._OBSERVATION_HEADER_H)
+        assert pixel_bytes(a.crop(header)) != pixel_bytes(b.crop(header))
+
+    def test_band_mix_is_one_read_partitioned_three_ways(self):
+        """Over a whole tile, shade takes exactly its share of cells and the
+        band's minor ink takes its share of the remainder — no second read."""
+        black, major, minor = rq.SPECTRA6["black"], rq.SPECTRA6["yellow"], rq.SPECTRA6["red"]
+        counts = {black: 0, major: 0, minor: 0}
+        for rank in range(64):
+            counts[rq._observation_mix(rank, 0.25, major, minor, 0.375)] += 1
+        assert counts[black] == 16
+        assert counts[minor] == 18
+        assert counts[major] == 30
+
+    def test_far_rings_pass_behind_the_planet(self):
+        """Painting the rings over the planet may change the disc only on the
+        near half of the ring plane (v > 0); the far half is occluded."""
+        base = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._observation_paint_saturn(base)
+        ringed = base.copy()
+        rq._observation_paint_rings(ringed)
+        cx, cy, r = rq._OBSERVATION_SATURN
+        a, b = base.load(), ringed.load()
+        near_changed = 0
+        for y in range(cy - r, cy + r + 1):
+            for x in range(cx - r, cx + r + 1):
+                if (x - cx) ** 2 + (y - cy) ** 2 > r * r or a[x, y] == b[x, y]:
+                    continue
+                _, v = rq._observation_ring_frame(x - cx, y - cy)
+                assert v >= 0, f"far-side ring painted over the planet at {(x, y)}"
+                near_changed += 1
+        assert near_changed > 500, "the near rings should cross in front of the disc"
+
+    def test_saturn_is_banded_and_shaded(self):
+        """The disc carries the warm band inks, the blue polar cap, and a
+        terminator: its lower-right quadrant is darker than its upper-left."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._observation_paint_saturn(image)
+        cx, cy, r = rq._OBSERVATION_SATURN
+        disc = distinct_inks(image.crop((cx - r, cy - r, cx + r + 1, cy + r + 1)))
+        assert {rq.SPECTRA6[n] for n in ("yellow", "red", "blue", "white")} <= disc
+        black = rq.SPECTRA6["black"]
+
+        def black_share(box):
+            counts = ink_counts(image.crop(box))
+            return counts.get(black, 0) / sum(counts.values())
+
+        h = r // 2
+        lit = black_share((cx - h - 10, cy - h - 10, cx - h + 10, cy - h + 10))
+        dark = black_share((cx + h - 10, cy + h - 10, cx + h + 10, cy + h + 10))
+        assert dark > lit + 0.2
+
+    def test_tears_never_cut_the_transcript(self, monkeypatch):
+        """Tracking tears shear the feed only — the panel is painted after
+        them, so neutering the tears leaves the panel byte-identical."""
+        torn = self._render()
+        monkeypatch.setattr(rq, "_observation_paint_tears", lambda image: None)
+        clean = self._render()
+        assert pixel_bytes(torn.crop(rq._OBSERVATION_PANEL)) == pixel_bytes(clean.crop(rq._OBSERVATION_PANEL))
+        assert pixel_bytes(torn) != pixel_bytes(clean)
+
+    def test_phrase_is_yellow_with_a_tangerine_halo(self, monkeypatch):
+        """The matched phrase is a yellow core in a red+yellow halo that only
+        ever lands on black — the white prose is never overwritten."""
+        red, yellow, white = rq.SPECTRA6["red"], rq.SPECTRA6["yellow"], rq.SPECTRA6["white"]
+        qbox = rq._OBSERVATION_QUOTE_RECT
+        with_halo = self._render().crop(qbox)
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        without = self._render().crop(qbox)
+        assert ink_counts(without).get(red, 0) == 0
+        assert ink_counts(with_halo).get(red, 0) > 0
+        assert ink_counts(with_halo).get(yellow, 0) > ink_counts(without).get(yellow, 0)
+        white_mask = without.convert("L").point(lambda v: 255 if v == 255 else 0)
+        under = Image.composite(with_halo, Image.new("RGB", with_halo.size, white), white_mask)
+        assert distinct_inks(under) == {white}, "halo overwrote prose"
+
+    def test_lit_module_matches_the_camera(self):
+        """The station schematic lights exactly one module — the camera's."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._observation_paint_map(ImageDraw.Draw(image), 7)
+        x0, y0, x1, y1 = rq._OBSERVATION_MAP_RECT
+        n = len(rq._OBSERVATION_MODULES)
+        step = (x1 - x0 - 12) / (n - 1)
+        yellow = rq.SPECTRA6["yellow"]
+        lit = [i for i in range(n)
+               if yellow in distinct_inks(image.crop((round(x0 + 6 + i * step) - 8, y0 - 2,
+                                                      round(x0 + 6 + i * step) + 8, y1 + 2)))]
+        assert lit == [rq._observation_module_index(7)]
+
+    def test_unattributed_log_and_missing_title(self):
+        row = {**self.ROW, "author": "", "title": ""}
+        assert rq._observation_log_header(make_row(**row)) == "AUDIO LOG — UNATTRIBUTED"
+        assert rq._observation_log_header(make_row(**self.ROW)) == "AUDIO LOG — JANE AUSTEN"
+        image = self._render(row)
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+
+class TestTrisolarisFrame:
+    """``trisolaris`` — Liu Cixin's *The Three-Body Problem*.
+
+    Three suns and a planet integrated under Newtonian gravity from committed
+    initial conditions, advanced by the clock; the era and the civilization
+    count are read off the integration; the Red Coast dish on Radar Peak; the
+    quote in the dark sky with the matched phrase lit as sunlight.
+    """
+
+    ROW = dict(
+        display_quote="The clock was striking ten when he came back, and the whole "
+                      "house seemed asleep; only the stars were awake over the river.",
+        matched_text="striking ten",
+        author="H. G. Wells",
+        title="The Time Machine",
+        source_id="35",
+        line_number=646,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="10:00"):
+        return rq.render(time_str, make_row(**(row or TestTrisolarisFrame.ROW)),
+                         800, 480, mode="production", theme="trisolaris")
+
+    @staticmethod
+    def _dial_indices():
+        return [rq._trisolaris_index(f"{h:02d}:{m:02d}") for h in range(12) for m in range(60)]
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "trisolaris" in rq.THEMES
+        assert "trisolaris" in rq.THEME_ORDER
+        assert "trisolaris" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["trisolaris"] == 0.7
+        assert rq.theme_font_candidates("trisolaris", "quote_regular")[0] == rq.TITILLIUM_REGULAR
+        assert rq.theme_font_candidates("trisolaris", "quote_bold")[0] == rq.TITILLIUM_SEMIBOLD
+        for path in (rq.TITILLIUM_REGULAR, rq.TITILLIUM_SEMIBOLD, rq.TITILLIUM_BOLD, rq.TITILLIUM_ITALIC):
+            assert pathlib.Path(path).exists()
+        assert (pathlib.Path(rq.TITILLIUM_REGULAR).parent / "OFL.txt").exists()
+
+    def test_frame_is_on_palette_and_deterministic(self):
+        image = self._render()
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_the_clock_drives_the_sky(self):
+        """Noon and midnight both start the dial, so the same minute past
+        either renders identically; a different minute moves the suns."""
+        assert pixel_bytes(self._render(time_str="00:30")) == pixel_bytes(self._render(time_str="12:30"))
+        orrery = (0, 0, 446, 380)
+        a = self._render(time_str="09:00").crop(orrery)
+        b = self._render(time_str="09:05").crop(orrery)
+        assert pixel_bytes(a) != pixel_bytes(b)
+
+    def test_the_suns_stay_in_the_system_all_day(self):
+        """The committed initial conditions were searched for a dance that
+        stays bound across the whole dial. A generic three-body start ejects
+        a sun within a few dozen crossing times, so any change to the
+        constants, masses or step that lets one escape fails here — and the
+        projection, which fits the suns' whole-day paths, would otherwise
+        shrink the remaining two to a speck."""
+        for sample in rq._trisolaris_ephemeris():
+            for x, y in sample[0]:
+                assert x * x + y * y < 2.5 * 2.5
+
+    def test_barycentre_is_fixed_at_the_origin(self):
+        """Zero total momentum is conserved exactly by pairwise-symmetric
+        forces under leapfrog, so the mass-weighted centre stays at the
+        origin — the point the dish's transmission is aimed at. Drift here
+        means the integrator or the initial conditions were mangled."""
+        masses = rq._TRISOLARIS_MASSES
+        total = sum(masses)
+        for sample in rq._trisolaris_ephemeris():
+            cx = sum(m * s[0] for m, s in zip(masses, sample[0])) / total
+            cy = sum(m * s[1] for m, s in zip(masses, sample[0])) / total
+            assert abs(cx) < 1e-9 and abs(cy) < 1e-9
+
+    def test_both_eras_occur_and_neither_dominates(self):
+        """The era is physics, not decoration — so the day must actually
+        contain both, each for a real share of the dial's buckets."""
+        stable = [rq._trisolaris_era(f"{h:02d}:{m:02d}")[0] for h in range(12) for m in range(0, 60, 5)]
+        share = sum(stable) / len(stable)
+        assert 0.3 <= share <= 0.8, share
+        switches = sum(1 for a, b in zip(stable, stable[1:]) if a != b)
+        assert switches >= 6
+
+    def test_civilizations_are_lost_across_the_day(self):
+        """The counter starts at ``_TRISOLARIS_FIRST_CIVILIZATION`` at the
+        start of the preroll, never goes backwards within the dial, and a
+        handful of civilizations are destroyed between noon and midnight."""
+        ephemeris = rq._trisolaris_ephemeris()
+        assert ephemeris[0][3] == 0
+        counts = [ephemeris[i][3] for i in self._dial_indices()]
+        assert counts == sorted(counts)
+        assert 3 <= counts[-1] - counts[0] <= 25
+        assert rq._trisolaris_era("00:00")[1] == rq._TRISOLARIS_FIRST_CIVILIZATION + counts[0]
+
+    def test_the_planet_never_leaves_the_system(self):
+        """A lost planet is reborn on the very next sample, so every stored
+        planet position is within the loss radius plus one sample's travel."""
+        for sample in rq._trisolaris_ephemeris():
+            px_, py_ = sample[1]
+            assert px_ * px_ + py_ * py_ < rq._TRISOLARIS_LOST_RADIUS2 * 1.5
+
+    def test_the_planet_trail_breaks_at_a_rebirth(self):
+        """A new civilization begins in a new orbit; the jump between the two
+        is not a path the planet travelled and must not be drawn. The planet's
+        trail is the only white the orbit painter lays down, so the dead
+        planet's last position must stay dark just after a rebirth."""
+        ephemeris = rq._trisolaris_ephemeris()
+        clip = rq._TRISOLARIS_ORRERY_CLIP
+        checked = 0
+        for k in range(1, len(ephemeris) - 3):
+            if ephemeris[k][3] == ephemeris[k - 1][3]:
+                continue
+            old = rq._trisolaris_project(ephemeris[k - 1][1])
+            new = rq._trisolaris_project(ephemeris[k][1])
+            inside = clip[0] + 4 <= old[0] < clip[2] - 4 and clip[1] + 4 <= old[1] < clip[3] - 4
+            if not inside or math.dist(old, new) < 40:
+                continue
+            image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+            rq._trisolaris_paint_orbits(image, k + 2)
+            window = image.crop((int(old[0]) - 3, int(old[1]) - 3, int(old[0]) + 4, int(old[1]) + 4))
+            assert rq.SPECTRA6["white"] not in distinct_inks(window), f"trail crosses rebirth at sample {k}"
+            checked += 1
+        assert checked >= 1, "no rebirth landed far enough from its predecessor to test"
+
+    def test_integration_is_identical_in_a_fresh_process(self):
+        """The ephemeris uses only correctly rounded operations, so a fresh
+        interpreter (with a different hash seed) must reproduce it bit for bit
+        — the property the golden fixture and run_clock's dedup depend on."""
+        import os
+        import subprocess
+        import sys
+        code = ("from idle_hours import render_quote as rq; e = rq._trisolaris_ephemeris(); "
+                "print(repr(e[-1]), len(e))")
+        env = dict(os.environ, PYTHONHASHSEED="12345")
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                             env=env, check=True).stdout.strip()
+        ephemeris = rq._trisolaris_ephemeris()
+        assert out == f"{ephemeris[-1]!r} {len(ephemeris)}"
+
+    def test_the_matched_phrase_is_the_only_sunlight_in_the_column(self):
+        """Yellow in the quote rect comes from the matched phrase and nothing
+        else: stars are kept out of it, and a row with no phrase paints none."""
+        yellow = rq.SPECTRA6["yellow"]
+        rect = rq._TRISOLARIS_QUOTE_RECT
+        assert yellow in distinct_inks(self._render().crop(rect))
+        plain = self._render({**self.ROW, "matched_text": ""})
+        assert yellow not in distinct_inks(plain.crop(rect))
+
+    def test_era_header_follows_the_physics(self):
+        """A stable and a chaotic minute paint different headers, and the
+        header's text comes from ``_trisolaris_era``."""
+        eras = {}
+        for h in range(12):
+            for m in range(0, 60, 5):
+                t = f"{h:02d}:{m:02d}"
+                eras.setdefault(rq._trisolaris_era(t)[0], t)
+        assert set(eras) == {True, False}
+        header = (rq._TRISOLARIS_COLUMN[0], 0, 800, 108)
+        stable = self._render(time_str=eras[True]).crop(header)
+        chaotic = self._render(time_str=eras[False]).crop(header)
+        assert pixel_bytes(stable) != pixel_bytes(chaotic)
+
+    def test_stars_stay_out_of_the_text_column(self):
+        """A star beside a letterform reads as a stroke of it, so the whole
+        column — masthead, header chrome, quote, byline, warning — is starless.
+        Excluding only the quote block left 26 stars inside the header and
+        footer text on the committed seed."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._trisolaris_paint_sky(image)
+        column = image.crop((rq._TRISOLARIS_COLUMN[0] - 10, 0, 800, 480))
+        assert distinct_inks(column) == {rq.SPECTRA6["black"]}
+        assert rq.SPECTRA6["white"] in distinct_inks(image), "the star field painted nothing"
+
+    def test_the_dish_aims_at_the_barycentre(self):
+        """The transmission is aimed where the suns dance: the dish axis from
+        its pivot passes through the projected origin of the integration."""
+        ridge = rq._trisolaris_ridge_y(rq._TRISOLARIS_DISH_X)
+        _, _, _, pivot, _, (ux, uy) = rq._trisolaris_dish_geometry(ridge)
+        tx, ty = rq._trisolaris_project((0.0, 0.0))
+        bearing = math.atan2(ty - pivot[1], tx - pivot[0])
+        assert abs(math.atan2(uy, ux) - bearing) < 1e-9
+
+    def test_rebirth_is_circular_under_the_softened_force(self):
+        """The reborn planet's speed relative to its home sun is the circular
+        speed of the force law it actually feels: v^2 / r equals the softened
+        pull. The Keplerian sqrt(m / r) is ~5% fast and starts an eccentric
+        orbit."""
+        pos = [[0.0, 0.0], [40.0, 0.0], [41.0, 0.0]]       # sun 0 is the most isolated
+        vel = [[0.1, -0.2], [0.0, 0.0], [0.0, 0.0]]
+        p, pv = rq._trisolaris_rebirth(pos, vel)
+        r = math.dist(p, pos[0])
+        v = math.dist(pv, vel[0])
+        assert abs(r - rq._TRISOLARIS_REBIRTH_RADIUS) < 1e-12
+        softened_pull = rq._TRISOLARIS_MASSES[0] * r / (r * r + rq._TRISOLARIS_PLANET_SOFTENING2) ** 1.5
+        assert abs(v * v / r - softened_pull) < 1e-9
+        assert v < math.sqrt(rq._TRISOLARIS_MASSES[0] / r) * 0.97
+
+    def test_no_planet_survives_a_pass_inside_a_sun(self, monkeypatch):
+        """The death check runs on every leapfrog step, not every sample.
+
+        Stored samples cannot show this — they are taken after the check under
+        either scheme — so watch the integrator itself: every force evaluation
+        that finds the planet inside a sun's burn radius must be followed
+        immediately by a rebirth. A sample-boundary check let one planet per
+        day pass through a sun and out again between samples.
+        """
+        events = []
+        accel, rebirth = rq._trisolaris_planet_accel, rq._trisolaris_rebirth
+
+        def watched_accel(p, pos):
+            inside = any((p[0] - x) ** 2 + (p[1] - y) ** 2 < rq._TRISOLARIS_BURN_RADIUS2 for x, y in pos)
+            events.append(inside)
+            return accel(p, pos)
+
+        def watched_rebirth(pos, vel):
+            events.append("rebirth")
+            return rebirth(pos, vel)
+
+        monkeypatch.setattr(rq, "_trisolaris_planet_accel", watched_accel)
+        monkeypatch.setattr(rq, "_trisolaris_rebirth", watched_rebirth)
+        monkeypatch.setattr(rq, "_TRISOLARIS_EPHEMERIS", None)
+        rq._trisolaris_ephemeris()
+        burns = [k for k, e in enumerate(events) if e is True]
+        assert burns, "no planet ever came inside a sun — the fence proves nothing"
+        for k in burns:
+            assert events[k + 1] == "rebirth", f"planet survived a pass inside a sun at evaluation {k}"
+
+    def test_malformed_time_falls_back_to_the_start_of_the_dial(self):
+        assert rq._trisolaris_index("garbage") == rq._trisolaris_index("00:00")
+        image = rq.render("garbage", make_row(**self.ROW), 800, 480, mode="production", theme="trisolaris")
+        assert image.size == (800, 480)
+class TestShadeHeightField:
+    """``shade_height_field`` — a procedural height field lit Blinn-Phong.
+
+    The failure worth fencing is silent: a flipped Sobel sign still renders a
+    plausible-looking relief, just lit from the wrong corner, and nothing else
+    in the suite would notice.
+    """
+
+    @staticmethod
+    def _ramp(axis: str) -> Image.Image:
+        image = Image.new("L", (9, 9))
+        image.putdata([(x if axis == "x" else y) * 10 for y in range(9) for x in range(9)])
+        return image
+
+    def test_sobel_kernels_read_as_positive_slopes(self):
+        """Measured against ramps: ``ImageFilter.Kernel`` reverses its rows but
+        not its columns, so the Y weights look upside down on purpose."""
+        x_ramp, y_ramp = self._ramp("x"), self._ramp("y")
+        assert x_ramp.filter(rq._SOBEL_X).getpixel((4, 4)) == 128 + 40
+        assert x_ramp.filter(rq._SOBEL_Y).getpixel((4, 4)) == 128
+        assert y_ramp.filter(rq._SOBEL_Y).getpixel((4, 4)) == 128 + 40
+        assert y_ramp.filter(rq._SOBEL_X).getpixel((4, 4)) == 128
+
+    def test_flat_field_shades_to_ambient_plus_diffuse_lz(self):
+        light = (-0.55, -0.62, 0.56)
+        norm = math.sqrt(sum(c * c for c in light))
+        tone = rq.shade_height_field(Image.new("L", (16, 16), 90), light=light,
+                                     ambient=0.1, diffuse=0.8, specular=0.0)
+        expected = round((0.1 + 0.8 * light[2] / norm) * 255)
+        assert abs(tone.getpixel((8, 8)) - expected) <= 1
+
+    def test_dome_is_lit_from_the_upper_left(self):
+        from PIL import ImageFilter
+        field = Image.new("L", (120, 120), 0)
+        ImageDraw.Draw(field).ellipse((20, 20, 100, 100), fill=255)
+        tone = rq.shade_height_field(field.filter(ImageFilter.GaussianBlur(10)), specular=0.0)
+        upper_left = tone.crop((28, 28, 44, 44))
+        lower_right = tone.crop((76, 76, 92, 92))
+        def mean(im):
+            hist = im.histogram()
+            return sum(i * c for i, c in enumerate(hist)) / sum(hist)
+
+        assert mean(upper_left) > mean(lower_right) + 60
+
+    def test_specular_glint_is_brighter_than_diffuse_alone(self):
+        from PIL import ImageFilter
+        field = Image.new("L", (120, 120), 0)
+        ImageDraw.Draw(field).ellipse((20, 20, 100, 100), fill=255)
+        field = field.filter(ImageFilter.GaussianBlur(10))
+        matte = rq.shade_height_field(field, specular=0.0)
+        glossy = rq.shade_height_field(field, specular=0.9)
+        assert glossy.getextrema()[1] > matte.getextrema()[1]
+        assert glossy.getextrema()[1] == 255
+
+    def test_lookup_table_is_memoised_per_parameter_set(self):
+        a = rq._height_field_lut((-0.5, -0.5, 0.7), 0.02, 0.1, 0.8, 0.5, 20.0)
+        assert rq._height_field_lut((-0.5, -0.5, 0.7), 0.02, 0.1, 0.8, 0.5, 20.0) is a
+        assert len(a) == 65536
+
+
+class TestBiomechFrame:
+    """``biomech`` — H. R. Giger's wall round a Zdzisław Beksiński dusk.
+
+    A lit, K+W-dithered biomechanical height field frames a pointed arch; a
+    procedurally painted dusk and ruin are dithered to K/R/Y/W behind it. The
+    hour is the Roman numeral on the sill plate.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestBiomechFrame.ROW)),
+                         *size, mode="production", theme="biomech")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "biomech" in rq.THEMES
+        assert "biomech" in rq.THEME_ORDER
+        assert "biomech" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["biomech"] == 0.7
+        assert rq.theme_font_candidates("biomech", "quote_regular")[0] == rq.SPECTRAL_MEDIUM
+        assert rq.theme_font_candidates("biomech", "quote_bold")[0] == rq.SPECTRAL_SEMIBOLD
+        for path in (rq.SPECTRAL_MEDIUM, rq.SPECTRAL_SEMIBOLD, rq.SPECTRAL_MEDIUM_ITALIC,
+                     rq.GRENZE_GOTISCH_VARIABLE):
+            assert pathlib.Path(path).exists(), path
+            assert (pathlib.Path(path).parent / "OFL.txt").exists()
+
+    @pytest.mark.parametrize("time_str,hour", [
+        ("00:30", 12), ("12:00", 12), ("13:05", 1), ("01:59", 1), ("21:15", 9), ("bogus", 12),
+    ])
+    def test_hour_is_the_twelve_hour_clock_hour(self, time_str, hour):
+        assert rq._biomech_hour(time_str) == hour
+
+    def test_minute_never_reaches_the_frame(self):
+        """Hour only: the plate's numeral carries the hour and the matched
+        phrase the minute, so every minute of an hour renders byte-identically."""
+        first = pixel_bytes(self._render(time_str="14:00"))
+        for time_str in ("14:07", "14:30", "14:59", "02:45"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_hour_changes_only_the_plate(self):
+        a, b = self._render(time_str="14:30"), self._render(time_str="15:30")
+        assert pixel_bytes(a) != pixel_bytes(b)
+        diff = ImageChops.difference(a, b).getbbox()
+        x0, y0, x1, y1 = rq._BIOMECH_PLATE
+        assert diff[0] >= x0 and diff[1] >= y0 and diff[2] <= x1 + 1 and diff[3] <= y1 + 1
+
+    def test_on_palette_deterministic_and_the_fire_never_cools(self):
+        """Black, white, red and yellow only: blue or green anywhere would mean
+        error diffusion cooled the dusk or chroma leaked into the bone."""
+        image = self._render()
+        assert distinct_inks(image) == {rq.SPECTRA6[n] for n in ("black", "white", "red", "yellow")}
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_wall_is_monochrome_bone_with_a_red_rim(self):
+        """The wall dithers to K+W; red appears only as rim light, sparse, and
+        concentrated on the side facing the portal."""
+        image = self._render()
+        left = rq._BIOMECH_ARCH[0]
+        pier = image.crop((0, 120, left, 440))
+        counts = ink_counts(pier)
+        assert set(counts) <= {rq.SPECTRA6[n] for n in ("black", "white", "red")}
+        red = rq.SPECTRA6["red"]
+        total = sum(counts.values())
+        assert 0 < counts.get(red, 0) < 0.12 * total
+        outer = ink_counts(image.crop((0, 120, 30, 440))).get(red, 0)
+        inner = ink_counts(image.crop((left - 30, 120, left, 440))).get(red, 0)
+        assert inner > 3 * outer
+
+    def test_quote_rect_lies_inside_the_opening(self):
+        x0, y0, x1, y1 = rq._BIOMECH_QUOTE_RECT
+        left, right, *_ = rq._BIOMECH_ARCH
+        cx = (left + right) / 2
+        for y in (y0 + 14, (y0 + y1) / 2, y1):
+            assert cx - rq._biomech_arch_halfwidth(y) <= x0
+            assert cx + rq._biomech_arch_halfwidth(y) >= x1
+
+    def test_sun_and_cloud_stay_above_the_horizon(self):
+        """The ground below the horizon is only the ground gradient: the sun is
+        half set, not a disc lying on the plain."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._biomech_paint_sky(image)
+        ground = image.crop((0, rq._BIOMECH_HORIZON + 1, 800, 480))
+        ceiling = max(rq._BIOMECH_GROUND_STOPS[0][1])
+        assert max(band_max for _, band_max in ground.getextrema()) <= ceiling
+        sx, sy, sr = rq._BIOMECH_SUN
+        assert image.getpixel((sx, sy - sr // 2)) == (255, 244, 206)
+
+    def test_zenith_is_black_behind_the_quote(self):
+        """The top of the sky dithers to solid black, so the halo'd prose sits
+        on night rather than on a speckle."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._biomech_paint_sky(image)
+        top = rq.dither_image_to_palette(image, rq._BIOMECH_SCENE_PALETTE).crop((200, 0, 600, 160))
+        assert distinct_inks(top) == {rq.SPECTRA6["black"]}
+
+    def test_phrase_is_an_ember_that_never_overwrites_prose(self, monkeypatch):
+        """Yellow core, red bloom landing only on black."""
+        red, yellow, white = rq.SPECTRA6["red"], rq.SPECTRA6["yellow"], rq.SPECTRA6["white"]
+        qbox = rq._BIOMECH_QUOTE_RECT
+        with_halo = self._render().crop(qbox)
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        without = self._render().crop(qbox)
+        assert ink_counts(with_halo).get(red, 0) > ink_counts(without).get(red, 0)
+        assert ink_counts(with_halo).get(yellow, 0) > 0
+        white_mask = without.convert("L").point(lambda v: 255 if v == 255 else 0)
+        under = Image.composite(with_halo, Image.new("RGB", with_halo.size, white), white_mask)
+        assert distinct_inks(under) == {white}, "bloom overwrote prose"
+
+    def test_background_cache_respects_a_patched_painter(self, monkeypatch):
+        """The painted background is cached, but a neutered painter must still
+        change the frame — otherwise the decoration fences measure the cache."""
+        painted = pixel_bytes(self._render())
+        monkeypatch.setattr(rq, "_biomech_paint_wall", lambda image, opening: None)
+        assert pixel_bytes(self._render()) != painted
+        monkeypatch.undo()
+        assert pixel_bytes(self._render()) == painted
+
+    def test_bare_row_renders(self):
+        row = {**self.ROW, "author": "", "title": "", "source_id": None}
+        image = self._render(row)
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
 
 
 class TestCodexFrame:

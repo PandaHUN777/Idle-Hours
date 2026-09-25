@@ -98,6 +98,9 @@ CUSTOM_FRAME_THEMES = (
     "autochrome",
     "photo",
     "control",
+    "observation",
+    "trisolaris",
+    "biomech",
     "codex",
 )
 

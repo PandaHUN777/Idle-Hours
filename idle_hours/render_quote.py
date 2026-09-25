@@ -133,6 +133,9 @@ THEME_ORDER: tuple[str, ...] = (
     "betweenus_dark",
     "carcosa",
     "control",
+    "observation",
+    "trisolaris",
+    "biomech",
     "codex",
     "diags",
 )
@@ -162,8 +165,10 @@ CYCLE_EXCLUDED_THEMES: frozenset[str] = frozenset({"vinyl"})
 # its own frame. Entry comments used to say these palettes "serve only the
 # goodnight / source-card fall-through paths" — true when goodnight was a bare
 # headline, false once the sleep quote became a corpus row — and the sentence
-# had been copied into twenty entries. It lives here once instead. (``diags``
-# is the one frame that also reads its own entry, for its status labels.)
+# had been copied into nearly every custom-frame entry — each new theme copied
+# it again from its neighbour. It lives here once instead: a new entry should
+# point at this note rather than restate it. (``diags`` is the one frame that
+# also reads its own entry, for its status labels.)
 THEMES = {
     "default": {
         "page_bg": SPECTRA6["white"],
@@ -1253,6 +1258,56 @@ THEMES = {
         "ornament_light": SPECTRA6["white"],
         "source": SPECTRA6["black"],
     },
+    # *Observation* (No Code, 2019) — the station AI's camera feed. A custom
+    # frame (``render_observation_frame``): black space, a banded Saturn with
+    # its polar hexagon and lit rings, a glowing hexagonal anomaly under a
+    # tracking reticle, and the quote as an audio-log transcript in a S.A.M.
+    # HUD panel. White prose, yellow matched phrase with a tangerine halo.
+    # The literary-layout slots below serve only the palette-only paths (see the note above ``THEMES``).
+    "observation": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["blue"],
+        "accent": SPECTRA6["yellow"],
+        "ornament_dark": SPECTRA6["yellow"],
+        "ornament_light": SPECTRA6["yellow"],
+        "source": SPECTRA6["white"],
+    },
+    # Liu Cixin's *The Three-Body Problem* — the Trisolaran sky. A custom
+    # frame (``render_trisolaris_frame``): black space, three suns and a
+    # planet whose positions come from an actual gravitational integration
+    # driven by the clock, the Red Coast Base dish on a ridge at the foot.
+    # White prose; the matched phrase is sunlight — a yellow core in a
+    # tangerine bloom. The literary-layout slots below serve only
+    # the palette-only paths (see the note above ``THEMES``).
+    "trisolaris": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["white"],
+        "accent": SPECTRA6["yellow"],
+        "ornament_dark": SPECTRA6["yellow"],
+        "ornament_light": SPECTRA6["yellow"],
+        "source": SPECTRA6["white"],
+    },
+    # H. R. Giger and Zdzisław Beksiński — a biomechanical portal onto a
+    # burning dusk. A custom frame (``render_biomech_frame``): an airbrushed
+    # K+W wall of vertebrae, ribbed hoses and skulls, lit as a procedural
+    # height field, framing a pointed arch through which a Beksiński ruin
+    # stands against a blood-red sky. Bone-white prose; the matched phrase is
+    # an ember — yellow core, red bloom. The literary-layout slots below serve
+    # only the palette-only paths (see the note above ``THEMES``).
+    "biomech": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["red"],
+        "accent": SPECTRA6["yellow"],
+        "ornament_dark": SPECTRA6["red"],
+        "ornament_light": SPECTRA6["red"],
+        "source": SPECTRA6["white"],
+    },
     # Wax-sealed letter. A quote presented as intimate handwritten
     # correspondence on a sheet of aged paper. White ``page_bg`` warmed
     # to a faint cream/vellum by ``draw_letter_border``'s Layer 0
@@ -1843,6 +1898,31 @@ ANTONIO_VARIABLE = str(BASE_DIR / "fonts/antonio/Antonio-Variable.ttf")
 # the heavy condensed grotesque of *Control*'s title cards; variable Weight
 # axis with ExtraLight..Bold named instances. Used by ``control``.
 OSWALD_VARIABLE = str(BASE_DIR / "fonts/oswald/Oswald-Variable.ttf")
+# IBM Plex Mono (IBM, OFL) — static Regular / Medium / SemiBold / Bold cuts,
+# converted losslessly from IBM's published WOFF to sfnt. The S.A.M. terminal
+# face of ``observation``.
+PLEXMONO_REGULAR = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf")
+PLEXMONO_MEDIUM = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf")
+PLEXMONO_SEMIBOLD = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf")
+PLEXMONO_BOLD = str(BASE_DIR / "fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf")
+# Titillium Web (Accademia di Belle Arti di Urbino, OFL) — a technical
+# humanist sans drawn at a design school, cold and legible, the register of an
+# observatory printout rather than a game HUD. Static Regular / SemiBold /
+# Bold / Italic. Used by ``trisolaris``.
+TITILLIUM_REGULAR = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Regular.ttf")
+TITILLIUM_SEMIBOLD = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-SemiBold.ttf")
+TITILLIUM_BOLD = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Bold.ttf")
+TITILLIUM_ITALIC = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Italic.ttf")
+# Spectral (Production Type, OFL) — a cold, sharp-bracketed book serif whose
+# long hairline-free stems hold as bone-white on black; Medium body, SemiBold
+# matched phrase, Medium Italic byline. The text face of ``biomech``.
+SPECTRAL_MEDIUM = str(BASE_DIR / "fonts/spectral/Spectral-Medium.ttf")
+SPECTRAL_SEMIBOLD = str(BASE_DIR / "fonts/spectral/Spectral-SemiBold.ttf")
+SPECTRAL_MEDIUM_ITALIC = str(BASE_DIR / "fonts/spectral/Spectral-MediumItalic.ttf")
+# Grenze Gotisch (Renata Polastri / Omnibus-Type, OFL) — a blackletter/roman
+# hybrid with thorned, spurred terminals; variable Weight axis, named
+# instances pinned. The ``biomech`` plate label.
+GRENZE_GOTISCH_VARIABLE = str(BASE_DIR / "fonts/grenze-gotisch/GrenzeGotisch-Variable.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3557,6 +3637,74 @@ THEME_FONTS: dict[str, dict[str, list]] = {
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
+    "trisolaris": {
+        # Titillium Web — a cold, technical humanist sans. Regular for the
+        # body over the black sky; SemiBold for the matched phrase, which
+        # already carries a bloom, so a full Bold would clog its counters
+        # once the halo closes in around them.
+        "quote_regular": [
+            TITILLIUM_REGULAR,
+            *META_FONT_CANDIDATES,
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            TITILLIUM_SEMIBOLD,
+            TITILLIUM_BOLD,
+            *META_FONT_BOLD_CANDIDATES,
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            TITILLIUM_ITALIC,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "observation": {
+        # IBM Plex Mono — the station's own terminal face: an engineered
+        # grotesque-derived mono with the 1970s-IBM-console register the game's
+        # analogue retro-future interiors are built from. Medium for the body
+        # (white strokes on black need the extra stem to survive the palette
+        # snap), Bold for the phrase under its tangerine halo. Space Mono is
+        # the next fallback so a stripped install stays monospaced.
+        "quote_regular": [
+            PLEXMONO_MEDIUM,
+            SPACEMONO_REGULAR,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            PLEXMONO_BOLD,
+            SPACEMONO_BOLD,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            PLEXMONO_BOLD,
+            SPACEMONO_BOLD,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "biomech": {
+        # Spectral — a cold, sharp book serif with sturdy stems: bone-white on
+        # black needs Medium to survive the palette snap, and the matched
+        # phrase steps to SemiBold under its ember bloom. Grenze Gotisch's
+        # thorned blackletter carries the ornament slot (the plate label and
+        # the fall-through quote marks). Falls back through the system serifs.
+        "quote_regular": [
+            SPECTRAL_MEDIUM,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            SPECTRAL_SEMIBOLD,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            (GRENZE_GOTISCH_VARIABLE, "SemiBold"),
+            UNIFRAKTUR_BOOK,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
     "grimdark": {
         # Imperial Gothic = Roman + Gothic blackletter, the exact typographic
         # blend of the 40K Imperium. The body uses Cinzel Decorative (the
@@ -4926,7 +5074,8 @@ def paint_neon_mask(
 
 def wrap_quote_into_masks(draw, size, quote_row: dict, rect, *, theme: str,
                          font_max: int = 34, font_min: int = 15,
-                         line_height_mult: float = 1.4) -> tuple[Image.Image, Image.Image, int]:
+                         line_height_mult: float = 1.4,
+                         align: str = "center") -> tuple[Image.Image, Image.Image, int]:
     """Lay a quote out into two ``"L"`` masks — prose and matched phrase — and
     return them with the block's bottom y.
 
@@ -4950,6 +5099,9 @@ def wrap_quote_into_masks(draw, size, quote_row: dict, rect, *, theme: str,
     ``_font_ascent`` rather than sharing a top edge, so the bold matched phrase
     sits on the same line as the prose around it even when the two faces report
     different ascents.
+
+    ``align="left"`` flushes every line to the rect's left edge instead —
+    ``observation`` sets the quote as a transcript, and a log reads ragged-right.
     """
     x0, y0, x1, y1 = rect
     box_w, box_h = x1 - x0, y1 - y0
@@ -4973,7 +5125,7 @@ def wrap_quote_into_masks(draw, size, quote_row: dict, rect, *, theme: str,
         segment = line[start:end]
         width_px = sum(draw.textbbox((0, 0), c, font=quote_font_bold if b else quote_font)[2]
                        for c, b in segment)
-        x = x0 + max(0, (box_w - width_px) // 2)
+        x = x0 if align == "left" else x0 + max(0, (box_w - width_px) // 2)
         for chunk, is_bold in segment:
             font = quote_font_bold if is_bold else quote_font
             target = hot_draw if is_bold else prose_draw
@@ -5196,6 +5348,101 @@ def paint_relief_mask(
             if not exterior_ok:
                 continue
             px[x, y] = highlight if shade > 0 else shadow
+
+
+# Sobel slopes for ``shade_height_field``, read as +d/dx and +d/dy. The Y
+# weights look upside down and the X weights do not, because
+# ``ImageFilter.Kernel`` applies its rows in reverse order but its columns as
+# written — measured against ramps, not assumed, and fenced by
+# ``TestShadeHeightField`` since a flipped sign silently moves the light to
+# the wrong corner. ``scale=2`` reports a unit ramp as 4 grey levels:
+# quarter-level slope resolution, which is what keeps a broad soft dome from
+# terracing into contour bands, at the cost of clipping slopes steeper than
+# 32 levels per pixel (a radius-4 blur of a solid shape).
+_SOBEL_X = ImageFilter.Kernel((3, 3), (-1, 0, 1, -2, 0, 2, -1, 0, 1), scale=2, offset=128)
+_SOBEL_Y = ImageFilter.Kernel((3, 3), (1, 2, 1, 0, 0, 0, -1, -2, -1), scale=2, offset=128)
+_HEIGHT_FIELD_LUTS: dict = {}
+
+
+def _height_field_lut(light, relief: float, ambient: float, diffuse: float,
+                      specular: float, shininess: float) -> bytes:
+    """A 65536-entry ``(gx << 8 | gy) → tone`` table: Blinn-Phong for every
+    slope pair the two Sobel images can report. Memoised per parameter set —
+    it is the only part of ``shade_height_field`` that runs Python maths per
+    *value* rather than per pixel, so building it once makes the per-pixel
+    pass a plain table lookup."""
+    key = (tuple(light), relief, ambient, diffuse, specular, shininess)
+    cached = _HEIGHT_FIELD_LUTS.get(key)
+    if cached is not None:
+        return cached
+    lx, ly, lz = light
+    norm = math.sqrt(lx * lx + ly * ly + lz * lz)
+    lx, ly, lz = lx / norm, ly / norm, lz / norm
+    hx, hy, hz = lx, ly, lz + 1.0                       # Blinn half-vector, viewer on +z
+    hn = math.sqrt(hx * hx + hy * hy + hz * hz)
+    hx, hy, hz = hx / hn, hy / hn, hz / hn
+    out = bytearray(65536)
+    for a in range(256):
+        nx = -(a - 128) * relief
+        for b in range(256):
+            ny = -(b - 128) * relief
+            inv = 1.0 / math.sqrt(nx * nx + ny * ny + 1.0)
+            ndl = (nx * lx + ny * ly + lz) * inv
+            ndh = (nx * hx + ny * hy + hz) * inv
+            tone = ambient + diffuse * max(0.0, ndl)
+            if ndh > 0.0:
+                tone += specular * ndh ** shininess
+            out[a << 8 | b] = max(0, min(255, int(tone * 255 + 0.5)))
+    table = bytes(out)
+    _HEIGHT_FIELD_LUTS[key] = table
+    return table
+
+
+def shade_height_field(
+    height: Image.Image,
+    *,
+    light=(-0.55, -0.62, 0.56),
+    relief: float = 0.025,
+    ambient: float = 0.1,
+    diffuse: float = 0.85,
+    specular: float = 0.7,
+    shininess: float = 28.0,
+) -> Image.Image:
+    """Render an ``"L"`` height field as a lit continuous-tone surface.
+
+    The eighth tone axis (``docs/spectra6_color_recipes.md``), and the first
+    that is a *3-D render* rather than a stipple rule: a whole surface — not a mask's edge — is given
+    a normal at every pixel and shaded Blinn-Phong under one light, then left
+    as continuous tone for error diffusion to carry onto the inks. That is what
+    an airbrush does, and it is why ``biomech`` exists: Giger's surfaces are
+    smooth gradients with hot specular glints on wet chrome and bone, which no
+    constant-density recipe, falling-density bloom or rank partition can fake.
+
+    How it differs from ``paint_relief_mask``, the nearest relative: that
+    primitive lights the blurred *edge* of a flat mask and writes ink by a
+    density rule, per pixel in Python — right for a raised letter. This one
+    takes an arbitrary height field built by the caller (blurred shapes unioned
+    with ``ImageChops.lighter``, carved with ``subtract``) and returns *tone*,
+    leaving the ink decision to ``dither_image_to_palette``. Everything that
+    touches every pixel is C-speed: the two slopes are 3x3 Sobel
+    ``ImageFilter.Kernel`` passes (a unit ramp reads as four grey levels,
+    ``offset=128`` keeps the sign), and the shading is a
+    single lookup into a memoised 65536-entry table indexed by the slope pair.
+
+    ``light`` is screen-space (x right, y down, z toward the viewer) — the
+    house upper-left convention. ``relief`` converts height units per pixel
+    into normal tilt, per Sobel level (four per unit of slope): a field blurred
+    at radius *r* has slopes near ``255/(2r)`` at its steepest, so the default
+    makes a radius-5 dome turn through most of a hemisphere. A flat pixel shades to ``ambient + diffuse *
+    lz`` — mid-grey, not black; darken recesses by multiplying the result
+    against the height itself, which is the caller's business because *how*
+    dark a recess goes is a matter of style.
+    """
+    gx = height.filter(_SOBEL_X).tobytes()
+    gy = height.filter(_SOBEL_Y).tobytes()
+    lut = _height_field_lut(tuple(light), relief, ambient, diffuse, specular, shininess)
+    tone = bytes(lut[a << 8 | b] for a, b in zip(gx, gy))
+    return Image.frombytes("L", height.size, tone)
 
 
 def _flow_stroke_hash(cx: int, cy: int, salt: int) -> float:
@@ -24248,6 +24495,1553 @@ def render_control_frame(time_str: str, quote_row: dict, width: int, height: int
 
 
 # ---------------------------------------------------------------------------
+# observation — S.A.M.'s camera feed, after No Code's *Observation* (2019)
+# ---------------------------------------------------------------------------
+# A custom frame: the quote as seen through the eyes of S.A.M. (Systems
+# Administration and Maintenance), the AI of the Observation space station in
+# orbit around Saturn in 2026. The player *is* the station's camera network,
+# so the page is one camera feed with the AI's interface laid over it:
+#
+# * **The feed.** Black space, a seeded star field, and Saturn — a banded
+#   disc shaded by a terminator, its blue-grey north polar cap carrying the
+#   hexagonal jet stream, and the rings cast as a tilted annulus that passes
+#   *behind* the planet on the far side and *in front* of it on the near side.
+#   Titan hangs as a small tangerine disc. Faint blue sensor noise haunts the
+#   black, and three tracking tears shear bands of the feed sideways — the
+#   interference the anomaly throws into every camera it touches.
+# * **The anomaly.** The game's alien presence is a hexagon; here it floats
+#   below the rings as nested glowing hexagons (white core, blue bloom), boxed
+#   by a yellow tracking reticle labelled the way the station labels things
+#   it cannot identify.
+# * **The HUD.** Camera-frame corner brackets, the S.A.M. identifier, a red
+#   REC tally and the camera's designation across the top; an uplink meter
+#   and a station schematic along the foot, the current camera's module lit.
+# * **The quote is an audio log.** An opaque terminal panel on the left with
+#   an inverted header naming the author as the log's source, the quote set
+#   ragged-right in white Plex Mono, the matched phrase yellow with a
+#   tangerine halo, a playback waveform, and the title as the file name.
+#
+# **Every colour on the page earns its ink.** Saturn is where the vibrancy
+# lives: each band is a two-ink mix (cream Y+W, gold Y+R, tangerine R+Y,
+# sky B+W at the pole) shaded by a *single* ``BAYER_8x8`` read partitioned
+# three ways — the lowest ranks take black for the terminator and the rest
+# split between the band's two inks in its own ratio. That is ``pride``'s
+# rule: a second read of the tile would be perfectly correlated with the first
+# and would drift the hue across the terminator rather than darkening it.
+#
+# **The time is the camera number, hour only.** S.A.M. cycles the station's
+# cameras, and ``CAM 07`` is a designation a reader parses as a feed, not a
+# clock — the ``cardcatalog`` due-hour / ``bakelite`` setting-index posture.
+# The minute stays with the matched phrase, pinned byte-identical across the
+# minutes of an hour by ``TestObservationFrame``. The hour also picks which
+# module of the station schematic is lit (two cameras per module).
+#
+# The log number and the waveform are seeded from ``_row_digest`` — never the
+# clock — so a different quote is a different recording, and the frame stays
+# byte-deterministic for run_clock's "quote unchanged, skip the redraw" dedup.
+#
+# Composed at the canonical 800x480 and NEAREST-downsampled for a non-native
+# request — the ``metro`` convention — because every element is an absolute
+# panel coordinate.
+# ---------------------------------------------------------------------------
+_OBSERVATION_PANEL = (26, 50, 436, 424)
+_OBSERVATION_HEADER_H = 24
+_OBSERVATION_QUOTE_RECT = (44, 92, 420, 346)
+_OBSERVATION_WAVE_RECT = (44, 362, 420, 390)
+_OBSERVATION_FILE_Y = 398
+_OBSERVATION_SATURN = (636, 206, 108)       # centre x, centre y, radius
+_OBSERVATION_TILT = 0.22                    # ring-plane rotation, radians
+_OBSERVATION_RING_K = 0.36                  # ring ellipse minor/major = sin(pole tilt)
+_OBSERVATION_LIGHT = (-0.62, -0.42, 0.66)   # sun direction (screen x, y, toward viewer)
+# Saturn's bands, north to south, as (lower sin-latitude bound, major ink,
+# minor ink, minor share). Reads top-down: the Cassini-blue polar cap, then
+# pale cream zones broken by thin gold and tangerine belts — mostly cream,
+# because a planet striped in saturated orange reads as a beach ball.
+_OBSERVATION_BANDS = (
+    (0.80, "blue", "white", 0.50),
+    (0.68, "white", "yellow", 0.45),
+    (0.58, "red", "yellow", 0.45),
+    (0.36, "yellow", "white", 0.45),
+    (0.26, "red", "yellow", 0.50),
+    (0.10, "yellow", "white", 0.38),
+    (-0.08, "white", "yellow", 0.40),
+    (-0.18, "yellow", "red", 0.30),
+    (-2.00, "yellow", "white", 0.45),
+)
+_OBSERVATION_HEX_LAT = 0.975                # sin(78 deg N) — the real hexagon's latitude
+# Rings as (inner, outer radius in planet radii, major ink, minor ink,
+# minor share, fill density). The Cassini division and Encke gap are the
+# spaces between entries.
+_OBSERVATION_RINGS = (
+    (1.24, 1.52, "yellow", "white", 0.50, 0.26),   # C ring: faint
+    (1.52, 1.94, "white", "yellow", 0.40, 0.92),   # B ring: the bright one
+    (2.02, 2.16, "yellow", "white", 0.35, 0.66),   # A ring, inside Encke
+    (2.19, 2.26, "yellow", "red", 0.30, 0.55),     # A ring, outside Encke
+    (2.33, 2.35, "white", "white", 0.00, 0.45),    # F ring: a thread
+)
+_OBSERVATION_TITAN = (474, 96, 7)
+_OBSERVATION_STAR_SEED = 0x0B5E
+_OBSERVATION_STAR_COUNT = 190
+# Tracking tears, as (top y, height, horizontal shift). Applied to the feed
+# only, before the HUD, so a tear can never cut the quote.
+_OBSERVATION_TEARS = ((150, 3, 11), (238, 2, -9), (300, 4, 15))
+_OBSERVATION_ANOMALY = (548, 380, 22)       # centre x, centre y, outer hexagon radius
+_OBSERVATION_MAP_RECT = (604, 422, 776, 466)
+# Two cameras per module; the hour picks the camera, the camera picks the module.
+_OBSERVATION_MODULES = ("HAB", "SCIENCE", "COMMS", "ENGINEERING", "AIRLOCK", "OBSERVATION")
+
+
+def _observation_camera(time_str: str) -> int:
+    """The camera S.A.M. is looking through: the 12-hour clock hour, 1..12."""
+    try:
+        hour = int(str(time_str).split(":", 1)[0])
+    except ValueError:
+        hour = 12
+    return hour % 12 or 12
+
+
+def _observation_module_index(camera: int) -> int:
+    return (camera - 1) // 2 % len(_OBSERVATION_MODULES)
+
+
+def _observation_mix(rank: int, black: float, major, minor, share: float):
+    """One ``BAYER_8x8`` rank, partitioned three ways: shade, then band mix.
+
+    The lowest ``round(black * 64)`` ranks take black; the remainder splits
+    between the band's two inks in its own ratio. One read, never two — see
+    the section comment.
+    """
+    nb = int(round(black * 64))
+    if rank < nb:
+        return SPECTRA6["black"]
+    return minor if (rank - nb) < share * (64 - nb) else major
+
+
+def _observation_paint_stars(image: Image.Image) -> None:
+    rng = random.Random(_OBSERVATION_STAR_SEED)
+    px = image.load()
+    width, height = image.size
+    white, yellow, blue = SPECTRA6["white"], SPECTRA6["yellow"], SPECTRA6["blue"]
+    for _ in range(_OBSERVATION_STAR_COUNT):
+        x, y = rng.randrange(width), rng.randrange(height)
+        roll = rng.random()
+        ink = yellow if roll < 0.06 else blue if roll < 0.12 else white
+        px[x, y] = ink
+        if rng.random() < 0.09 and x + 1 < width and y + 1 < height:
+            px[x + 1, y] = px[x, y + 1] = px[x + 1, y + 1] = white
+
+
+def _observation_ring_frame(dx: float, dy: float):
+    """Screen offset from Saturn's centre → ring-plane coordinates (u, v)."""
+    c, s = math.cos(_OBSERVATION_TILT), math.sin(_OBSERVATION_TILT)
+    return dx * c + dy * s, -dx * s + dy * c
+
+
+def _observation_from_ring_frame(u: float, v: float):
+    c, s = math.cos(_OBSERVATION_TILT), math.sin(_OBSERVATION_TILT)
+    return u * c - v * s, u * s + v * c
+
+
+def _observation_paint_saturn(image: Image.Image) -> None:
+    """The planet: latitude bands, a lit limb and a terminator, one read per pixel."""
+    cx, cy, r = _OBSERVATION_SATURN
+    width, height = image.size
+    px = image.load()
+    k = _OBSERVATION_RING_K
+    cos_phi = math.sqrt(1 - k * k)
+    lx, ly, lz = _OBSERVATION_LIGHT
+    norm = math.sqrt(lx * lx + ly * ly + lz * lz)
+    lx, ly, lz = lx / norm, ly / norm, lz / norm
+    inks = {name: SPECTRA6[name] for name in ("white", "yellow", "red", "blue")}
+    for y in range(max(0, cy - r), min(height, cy + r + 1)):
+        row = BAYER_8x8[y % 8]
+        dy = y - cy
+        for x in range(max(0, cx - r), min(width, cx + r + 1)):
+            dx = x - cx
+            d2 = dx * dx + dy * dy
+            if d2 > r * r:
+                continue
+            z = math.sqrt(r * r - d2)
+            u, v = _observation_ring_frame(dx, dy)
+            # sin(latitude): north is -v, and the pole leans toward us by k.
+            lat = (-v * cos_phi + z * k) / r
+            lat += 0.018 * math.sin(u * 0.11 + lat * 9.0)       # band turbulence
+            for upper, major, minor, share in _OBSERVATION_BANDS:
+                if lat >= upper:
+                    break
+            lit = (dx * lx + dy * ly + z * lz) / r
+            limb = z / r
+            shade = 0.08 + max(0.0, 0.55 - lit) * 1.5 + (1 - limb) ** 3 * 0.35
+            shade = min(0.94, shade)
+            px[x, y] = _observation_mix(row[x % 8], shade, inks[major], inks[minor], share)
+
+
+def _observation_paint_hexagon(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """Saturn's north-polar hexagon, projected onto the visible pole."""
+    cx, cy, r = _OBSERVATION_SATURN
+    k = _OBSERVATION_RING_K
+    cos_phi = math.sqrt(1 - k * k)
+    sin_lat = _OBSERVATION_HEX_LAT
+    cos_lat = math.sqrt(1 - sin_lat * sin_lat)
+    pole = (0.0, -cos_phi, k)
+    e2 = (0.0, k, cos_phi)
+    pts = []
+    for i in range(7):
+        a = math.radians(60 * i + 15)
+        u = r * (sin_lat * pole[0] + cos_lat * math.cos(a))
+        v = r * (sin_lat * pole[1] + cos_lat * math.sin(a) * e2[1])
+        dx, dy = _observation_from_ring_frame(u, v)
+        pts.append((cx + dx, cy + dy))
+    draw.line([(round(x), round(y)) for x, y in pts], fill=SPECTRA6["blue"], width=2, joint="curve")
+
+
+def _observation_paint_rings(image: Image.Image) -> None:
+    """The ring system: behind the planet on the far side, over it on the near."""
+    cx, cy, r = _OBSERVATION_SATURN
+    width, height = image.size
+    px = image.load()
+    k = _OBSERVATION_RING_K
+    outer = _OBSERVATION_RINGS[-1][1] * r
+    reach_x = int(outer) + 2
+    reach_y = int(outer * max(abs(math.sin(_OBSERVATION_TILT)), k)) + int(outer * k) + 4
+    inks = {name: SPECTRA6[name] for name in ("white", "yellow", "red")}
+    black = SPECTRA6["black"]
+    for y in range(max(0, cy - reach_y), min(height, cy + reach_y + 1)):
+        row = BAYER_8x8[y % 8]
+        dy = y - cy
+        for x in range(max(0, cx - reach_x), min(width, cx + reach_x + 1)):
+            dx = x - cx
+            u, v = _observation_ring_frame(dx, dy)
+            rho = math.sqrt(u * u + (v / k) ** 2) / r
+            if rho < _OBSERVATION_RINGS[0][0] or rho > _OBSERVATION_RINGS[-1][1]:
+                continue
+            on_disc = dx * dx + dy * dy <= r * r
+            if on_disc and v < 0:
+                continue                                    # far side, hidden by the planet
+            # Over the disc the rings are translucent: an unlit tile cell and
+            # a gap both leave the planet showing, rather than punching black.
+            for inner, outer_r, major, minor, share, density in _OBSERVATION_RINGS:
+                if inner <= rho < outer_r:
+                    rank = row[x % 8]
+                    if rank < density * 64:
+                        px[x, y] = _observation_mix(rank, 0.0, inks[major], inks[minor], share)
+                    elif not on_disc:
+                        px[x, y] = black
+                    break
+            else:
+                if not on_disc:
+                    px[x, y] = black                        # Cassini division / Encke gap
+
+
+def _observation_paint_titan(draw: ImageDraw.ImageDraw, image: Image.Image) -> None:
+    """Titan: a small tangerine disc with a lit crescent of white haze."""
+    tx, ty, tr = _OBSERVATION_TITAN
+    px = image.load()
+    red, yellow, white = SPECTRA6["red"], SPECTRA6["yellow"], SPECTRA6["white"]
+    for y in range(ty - tr, ty + tr + 1):
+        row = BAYER_8x8[y % 8]
+        for x in range(tx - tr, tx + tr + 1):
+            d2 = (x - tx) ** 2 + (y - ty) ** 2
+            if d2 > tr * tr:
+                continue
+            rank = row[x % 8]
+            haze = (x - tx) + (y - ty) < -tr * 0.9 and d2 > (tr - 2) ** 2
+            px[x, y] = white if haze else (yellow if rank < 24 else red)
+
+
+def _observation_paint_noise(image: Image.Image) -> None:
+    """Faint blue sensor noise on the black of the feed — every third row."""
+    width, height = image.size
+    px = image.load()
+    black, blue = SPECTRA6["black"], SPECTRA6["blue"]
+    for y in range(0, height, 3):
+        for x in range(width):
+            if px[x, y] == black and position_noise(x, y) % 16 == 0:
+                px[x, y] = blue
+
+
+def _observation_paint_tears(image: Image.Image) -> None:
+    """Tracking tears: thin bands of the feed sheared sideways (feed only)."""
+    width, height = image.size
+    for top, band_h, shift in _OBSERVATION_TEARS:
+        if top + band_h > height:
+            continue
+        band = image.crop((0, top, width, top + band_h))
+        image.paste(SPECTRA6["black"], (0, top, width, top + band_h))
+        image.paste(band, (shift, top))
+
+
+def _observation_hex_points(cx: float, cy: float, radius: float, rot: float = 0.0):
+    return [(cx + radius * math.cos(math.radians(60 * i + 30 + rot)),
+             cy + radius * math.sin(math.radians(60 * i + 30 + rot))) for i in range(6)]
+
+
+def _observation_paint_anomaly(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """The anomaly: nested hexagons, white-cored, blooming blue into space."""
+    ax, ay, ar = _OBSERVATION_ANOMALY
+    mask = Image.new("L", image.size, 0)
+    md = ImageDraw.Draw(mask)
+    for radius, rot, stroke in ((ar, 0, 3), (ar * 0.62, 30, 2), (ar * 0.3, 0, 2)):
+        pts = [(round(x), round(y)) for x, y in _observation_hex_points(ax, ay, radius, rot)]
+        md.line(pts + [pts[0]], fill=255, width=stroke, joint="curve")
+    for x, y in _observation_hex_points(ax, ay, ar):
+        md.line([(ax, ay), (round(x), round(y))], fill=255, width=1)
+    paint_neon_mask(image, mask, SPECTRA6["white"], SPECTRA6["blue"],
+                    radius=6, gamma=1.3, cap=0.78,
+                    ground=frozenset({SPECTRA6["black"]}), tile=BAYER_8x8)
+    mask.close()
+
+
+def _observation_brackets(draw, box, length: int, fill, width: int) -> None:
+    """Four L-shaped corner brackets — the camera-frame idiom."""
+    x0, y0, x1, y1 = box
+    for (x, y, sx, sy) in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+        draw.line([(x, y + sy * length), (x, y), (x + sx * length, y)], fill=fill, width=width)
+
+
+def _observation_paint_tracker(draw: ImageDraw.ImageDraw) -> None:
+    """A yellow tracking reticle round the anomaly, with S.A.M.'s label."""
+    ax, ay, ar = _OBSERVATION_ANOMALY
+    yellow, white = SPECTRA6["yellow"], SPECTRA6["white"]
+    pad = ar + 14
+    _observation_brackets(draw, (ax - pad, ay - pad, ax + pad, ay + pad), 9, yellow, 2)
+    for x0, x1 in ((ax - pad - 12, ax - pad - 3), (ax + pad + 3, ax + pad + 12)):
+        draw.line([(x0, ay), (x1, ay)], fill=yellow, width=1)
+    label = load_font([PLEXMONO_SEMIBOLD, SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], size=11)
+    tx = ax + pad + 16
+    draw.text((tx, ay - 20), "UNIDENTIFIED OBJECT", font=label, fill=white)
+    draw.text((tx, ay - 5), "TRACKING", font=label, fill=yellow)
+    draw.text((tx + draw.textlength("TRACKING ", font=label), ay - 5), "— NO DATA", font=label, fill=white)
+
+
+def _observation_paint_chrome(image: Image.Image, draw: ImageDraw.ImageDraw, camera: int) -> None:
+    """Camera brackets, the S.A.M. identifier, REC tally and camera designation."""
+    width, height = image.size
+    white, red, yellow = SPECTRA6["white"], SPECTRA6["red"], SPECTRA6["yellow"]
+    _observation_brackets(draw, (10, 10, width - 11, height - 11), 24, white, 2)
+    big = load_font([PLEXMONO_BOLD, SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], size=17)
+    small = load_font([PLEXMONO_SEMIBOLD, SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], size=11)
+    draw.text((42, 16), "S.A.M.", font=big, fill=white)
+    draw.text((42 + draw.textlength("S.A.M. ", font=big), 21),
+              "SYSTEMS ADMINISTRATION & MAINTENANCE", font=small, fill=white)
+    module = _OBSERVATION_MODULES[_observation_module_index(camera)]
+    cam = f"CAM {camera:02d} · {module}"
+    right = width - 42
+    cam_w = draw.textlength(cam, font=big)
+    draw.text((right - cam_w, 16), cam, font=big, fill=yellow)
+    rec_w = draw.textlength("REC", font=small)
+    rx = right - cam_w - 18 - rec_w
+    draw.text((rx, 21), "REC", font=small, fill=red)
+    draw.ellipse((rx - 14, 22, rx - 5, 31), fill=red)
+
+
+def _observation_paint_uplink(draw: ImageDraw.ImageDraw) -> None:
+    """Foot-left: the uplink meter — three of five bars, and a red DEGRADED."""
+    white, green, red = SPECTRA6["white"], SPECTRA6["green"], SPECTRA6["red"]
+    small = load_font([PLEXMONO_SEMIBOLD, SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], size=11)
+    x, base = 42, 460
+    draw.text((x, base - 14), "UPLINK / EARTH", font=small, fill=white)
+    bx = x + draw.textlength("UPLINK / EARTH ", font=small) + 4
+    for i in range(5):
+        h = 5 + i * 3
+        box = (bx + i * 9, base - h, bx + i * 9 + 5, base)
+        if i < 3:
+            draw.rectangle(box, fill=green)
+        else:
+            draw.rectangle(box, outline=white, width=1)
+    draw.text((bx + 5 * 9 + 10, base - 14), "DEGRADED", font=small, fill=red)
+
+
+def _observation_paint_map(draw: ImageDraw.ImageDraw, camera: int) -> None:
+    """Foot-right: the station schematic, the current camera's module lit."""
+    x0, y0, x1, y1 = _OBSERVATION_MAP_RECT
+    white, yellow, black = SPECTRA6["white"], SPECTRA6["yellow"], SPECTRA6["black"]
+    tiny = load_font([PLEXMONO_SEMIBOLD, SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], size=9)
+    draw.text((x0, y0 - 12), "STATION MAP", font=tiny, fill=white)
+    spine_y = (y0 + y1) // 2 + 4
+    draw.line([(x0 + 6, spine_y), (x1 - 6, spine_y)], fill=white, width=1)
+    lit = _observation_module_index(camera)
+    n = len(_OBSERVATION_MODULES)
+    step = (x1 - x0 - 12) / (n - 1)
+    for i in range(n):
+        mx = round(x0 + 6 + i * step)
+        above = i % 2 == 0
+        top, bottom = (spine_y - 18, spine_y - 5) if above else (spine_y + 5, spine_y + 18)
+        draw.line([(mx, spine_y), (mx, top if not above else bottom)], fill=white, width=1)
+        box = (mx - 9, top, mx + 9, bottom)
+        if i == lit:
+            draw.rectangle(box, fill=yellow, outline=yellow)
+        else:
+            draw.rectangle(box, fill=black, outline=white, width=1)
+    draw.ellipse((x1 - 6 - 2, spine_y - 2, x1 - 6 + 2, spine_y + 2), fill=white)
+
+
+def _observation_log_header(quote_row: dict) -> str:
+    author = (quote_row.get("author") or "").strip()
+    return f"AUDIO LOG — {author.upper()}" if author else "AUDIO LOG — UNATTRIBUTED"
+
+
+def _observation_paint_panel(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The audio-log terminal: header, transcript, waveform, file name."""
+    x0, y0, x1, y1 = _OBSERVATION_PANEL
+    white, black, yellow, red, green = (SPECTRA6[n] for n in ("white", "black", "yellow", "red", "green"))
+    draw.rectangle((x0, y0, x1, y1), fill=black, outline=white, width=1)
+    _observation_brackets(draw, (x0 - 3, y0 - 3, x1 + 3, y1 + 3), 14, white, 3)
+
+    # Header: inverted strip, log source left, recording number right.
+    hy1 = y0 + _OBSERVATION_HEADER_H
+    draw.rectangle((x0, y0, x1, hy1), fill=white)
+    digest = _row_digest(quote_row)
+    log_no = f"#{digest % 10000:04d}"
+    chrome = [PLEXMONO_BOLD, SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES]
+    num_font = load_font(chrome, size=12)
+    num_w = draw.textlength(log_no, font=num_font)
+    draw.text((x1 - 10 - num_w, y0 + 5), log_no, font=num_font, fill=black)
+    font, text = fit_text_to_width(draw, _observation_log_header(quote_row), chrome, 13,
+                                   x1 - x0 - 34 - num_w, floor=10)
+    draw.text((x0 + 10, y0 + 5), text, font=font, fill=black)
+
+    # Transcript: white prose, the matched phrase yellow in a tangerine halo.
+    prose, hot, _ = wrap_quote_into_masks(
+        draw, image.size, quote_row, _OBSERVATION_QUOTE_RECT, theme="observation",
+        font_max=36, font_min=13, line_height_mult=1.34, align="left",
+    )
+    image.paste(white, (0, 0), prose.point(lambda v: 255 if v > 128 else 0))
+    paint_neon_mask(
+        image, hot, yellow, red,
+        radius=3, gamma=1.8, cap=0.5,
+        ground=frozenset({black}), tile=BAYER_8x8,
+        glow_minor=yellow, glow_minor_share=0.375,
+    )
+    prose.close()
+    hot.close()
+
+    # Playback waveform: green bars, a yellow playhead, played part solid.
+    wx0, wy0, wx1, wy1 = _OBSERVATION_WAVE_RECT
+    mid = (wy0 + wy1) // 2
+    rng = random.Random(digest)
+    head = wx0 + int((wx1 - wx0) * (0.35 + 0.5 * rng.random()))
+    draw.line([(wx0, mid), (wx1, mid)], fill=green, width=1)
+    for x in range(wx0, wx1, 4):
+        env = 0.35 + 0.65 * abs(math.sin((x - wx0) * 0.045 + rng.random() * 0.6))
+        amp = max(1, int((wy1 - wy0) / 2 * env * (0.4 + 0.6 * rng.random())))
+        if x < head:
+            draw.rectangle((x, mid - amp, x + 1, mid + amp), fill=green)
+        else:
+            draw.line([(x, mid - amp), (x, mid + amp)], fill=green, width=1)
+    draw.line([(head, wy0 - 3), (head, wy1 + 3)], fill=yellow, width=2)
+
+    # File line: the title as the recording's file name.
+    title = (quote_row.get("title") or fallback_title(quote_row) or "").strip()
+    meta = [PLEXMONO_MEDIUM, SPACEMONO_REGULAR, *META_FONT_CANDIDATES]
+    label_font = load_font(chrome, size=11)
+    draw.text((x0 + 18, _OBSERVATION_FILE_Y), "FILE", font=label_font, fill=yellow)
+    fx = x0 + 18 + draw.textlength("FILE  ", font=label_font)
+    if title:
+        font, text = fit_text_to_width(draw, title.upper(), meta, 11, x1 - 14 - fx, floor=9)
+        draw.text((fx, _OBSERVATION_FILE_Y), text, font=font, fill=white)
+
+
+def render_observation_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """S.A.M.'s camera feed of Saturn (see the module section comment above)."""
+    camera = _observation_camera(time_str)
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["black"])
+    draw = ImageDraw.Draw(image)
+    _observation_paint_stars(image)
+    _observation_paint_saturn(image)
+    _observation_paint_hexagon(image, draw)
+    _observation_paint_rings(image)
+    _observation_paint_titan(draw, image)
+    _observation_paint_noise(image)
+    _observation_paint_tears(image)
+    _observation_paint_anomaly(image, draw)
+    _observation_paint_tracker(draw)
+    _observation_paint_chrome(image, draw, camera)
+    _observation_paint_uplink(draw)
+    _observation_paint_map(draw, camera)
+    _observation_paint_panel(image, draw, quote_row)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+
+# ---------------------------------------------------------------------------
+# trisolaris — Liu Cixin's *The Three-Body Problem* (三体, 2008)
+# ---------------------------------------------------------------------------
+# The Trisolaran sky, computed rather than drawn. Three suns and the planet
+# that orbits them are integrated here, from fixed initial conditions, under
+# plain Newtonian gravity — so the frame is not a picture *of* the three-body
+# problem, it is a solution of it, and the clock is what advances it. Each
+# minute of the twelve-hour dial is a fixed slice of simulated time, so the
+# suns sweep through a genuinely chaotic dance across the day and every render
+# shows where they have got to, with the last hour of their paths trailing
+# behind them.
+#
+# **The novel's own mechanics fall out of the physics rather than being
+# painted on.** In the book's VR game a Trisolaran *stable era* is a stretch in
+# which the planet orbits one sun while the other two are far away, and a
+# *chaotic era* is everything else — the king orders his people to dehydrate
+# for the one and rehydrate for the other. Here the era is read off the
+# integration: stable when one sun's pull on the planet exceeds the next
+# strongest by ``_TRISOLARIS_STABLE_DOMINANCE``, chaotic otherwise. And when
+# the planet falls into a sun or is flung out of the system, that civilization
+# is destroyed and the next one begins — the planet is reborn in a circular
+# orbit about the most isolated sun and the counter on the header advances,
+# which is exactly how the game numbers its civilizations. The planet's trail
+# is broken at every rebirth so a teleport never draws as a streak.
+#
+# **Why the integration can be trusted to be byte-identical everywhere.** Only
+# ``+ - * /`` and ``math.sqrt`` are used — all correctly rounded under IEEE 754,
+# so the same constants produce the same trajectory on every platform. ``**`` is
+# deliberately avoided in the force law (``r2 * sqrt(r2)`` rather than
+# ``r2 ** 1.5``): ``pow`` goes through the platform libm, which is not required
+# to round correctly. The scheme is kick-drift-kick leapfrog, symplectic, at a
+# fixed step. Forces are Plummer-softened: without softening a close pass needs
+# an adaptive step to stay accurate, and an adaptive step would make the frame
+# depend on floating-point comparisons in the step controller.
+#
+# **The initial conditions were searched, not guessed.** A generic bound
+# three-body system ejects a member within a few dozen crossing times, which
+# would leave a twelve-hour dial showing one sun receding off the panel. The
+# constants below were picked by an offline search over random zero-momentum
+# starts for one whose three suns stay inside the sky for the whole window
+# *and* whose planet lives through a mixture of stable and chaotic eras with a
+# handful of civilizations lost across the day. ``TestTrisolarisEphemeris``
+# fences all three properties against the committed constants, so a change to
+# any of them that breaks the dance fails a test rather than a panel.
+#
+# **Composition.** The orrery owns the left of the canvas. At the foot, the
+# Red Coast Base dish stands in white line-work on Radar Peak, aimed at the
+# system's barycentre with a fan of wavefronts leaving its feed — Ye Wenjie's
+# transmission, sent with the Sun as an amplifier. The quote sits in the dark sky on the right under a ``三体``
+# masthead, the matched phrase lit as sunlight (a yellow core in the bakelite
+# split-band tangerine bloom), the prose plain solid white. Along
+# the foot runs the reply from the Trisolaran pacifist that closes the first
+# act: DO NOT ANSWER.
+#
+# **The time.** The clock drives the simulation and the era label; no digit of
+# the hour or minute is printed. The civilization number is a count of deaths,
+# not a time. Composed at the canonical 800x480 and NEAREST-downsampled for a
+# non-native request (the ``metro`` convention) — the orrery projection and the
+# ridge are fixed panel geometry.
+# ---------------------------------------------------------------------------
+_TRISOLARIS_MASSES = (1.0, 0.85, 1.15)
+_TRISOLARIS_INITIAL_SUNS = (
+    (-0.7790231091549272, -1.123740528588034),
+    (-0.6284556317938058, 0.7024334277767176),
+    (1.141922083634489, 0.4579757521546296),
+)
+_TRISOLARIS_INITIAL_VELOCITIES = (
+    (-0.42512274278402506, 0.1819496698677228),
+    (0.3824413054486465, -0.3228627894307456),
+    (0.08699794187189179, 0.08042060969427037),
+)
+_TRISOLARIS_INITIAL_PLANET = (-1.0330201690484344, -1.4173172376938314)
+_TRISOLARIS_INITIAL_PLANET_VELOCITY = (0.7886371665064716, -0.8681726280332862)
+_TRISOLARIS_SOFTENING2 = 0.02          # sun-sun Plummer softening, squared
+_TRISOLARIS_PLANET_SOFTENING2 = 0.006  # planet-sun softening, squared
+_TRISOLARIS_DT = 0.004
+_TRISOLARIS_STEPS_PER_SAMPLE = 5
+_TRISOLARIS_SAMPLES_PER_MINUTE = 4
+_TRISOLARIS_PREROLL_MINUTES = 90       # so 12:00 already has a trail behind it
+_TRISOLARIS_DIAL_MINUTES = 720
+_TRISOLARIS_TRAIL_MINUTES = 60
+_TRISOLARIS_BURN_RADIUS2 = 0.0049      # planet within 0.07 of a sun: consumed
+_TRISOLARIS_LOST_RADIUS2 = 10.24       # planet beyond 3.2 of the barycentre: lost
+_TRISOLARIS_REBIRTH_RADIUS = 0.3
+_TRISOLARIS_STABLE_DOMINANCE = 4.0
+_TRISOLARIS_FIRST_CIVILIZATION = 183
+
+_TRISOLARIS_SKY = (146, 24, 436, 314)  # where the suns' whole-day paths are fitted, clear of the dish
+_TRISOLARIS_ORRERY_CLIP = (0, 0, 446, 420)
+_TRISOLARIS_COLUMN = (456, 780)        # the quote column's x extent
+_TRISOLARIS_QUOTE_RECT = (456, 118, 780, 372)
+_TRISOLARIS_DISH_X = 72                # the dish pedestal; its y comes from the ridge
+_TRISOLARIS_SUN_RADII = (6, 5, 7)
+_TRISOLARIS_STAR_SEED = 0x3B0D1E5
+_TRISOLARIS_WARNING = "DO NOT ANSWER!"
+_TRISOLARIS_WARNING_Y = 422
+
+_TRISOLARIS_EPHEMERIS: tuple | None = None
+_TRISOLARIS_PROJECTION: tuple | None = None
+
+
+def _trisolaris_sun_accel(pos):
+    """Softened pairwise gravity between the three suns (G = 1)."""
+    m = _TRISOLARIS_MASSES
+    ax = [0.0, 0.0, 0.0]
+    ay = [0.0, 0.0, 0.0]
+    for i in range(3):
+        for j in range(i + 1, 3):
+            dx = pos[j][0] - pos[i][0]
+            dy = pos[j][1] - pos[i][1]
+            r2 = dx * dx + dy * dy + _TRISOLARIS_SOFTENING2
+            inv = 1.0 / (r2 * math.sqrt(r2))
+            ax[i] += m[j] * dx * inv
+            ay[i] += m[j] * dy * inv
+            ax[j] -= m[i] * dx * inv
+            ay[j] -= m[i] * dy * inv
+    return ax, ay
+
+
+def _trisolaris_planet_accel(p, pos):
+    """Acceleration on the (massless) planet, plus each sun's pull strength —
+    the latter is what the era is read from."""
+    ax = ay = 0.0
+    pulls = []
+    for i in range(3):
+        dx = pos[i][0] - p[0]
+        dy = pos[i][1] - p[1]
+        r2 = dx * dx + dy * dy + _TRISOLARIS_PLANET_SOFTENING2
+        g = _TRISOLARIS_MASSES[i] / (r2 * math.sqrt(r2))
+        ax += g * dx
+        ay += g * dy
+        pulls.append(_TRISOLARIS_MASSES[i] / r2)
+    return ax, ay, pulls
+
+
+def _trisolaris_rebirth(pos, vel):
+    """A new civilization: a circular orbit about the most isolated sun — the
+    one whose nearest neighbour is furthest away, which is where a planet has
+    its best chance of a long stable era."""
+    best, home = -1.0, 0
+    for i in range(3):
+        nearest = min((pos[i][0] - pos[j][0]) * (pos[i][0] - pos[j][0])
+                      + (pos[i][1] - pos[j][1]) * (pos[i][1] - pos[j][1])
+                      for j in range(3) if j != i)
+        if nearest > best:
+            best, home = nearest, i
+    # Circular speed under the *softened* force law the planet actually feels:
+    # v^2 / r = m r / (r^2 + eps^2)^(3/2). The Keplerian sqrt(m / r) is ~5% too
+    # fast at this radius and starts every civilization on an eccentric orbit.
+    r = _TRISOLARIS_REBIRTH_RADIUS
+    q = r * r + _TRISOLARIS_PLANET_SOFTENING2
+    speed = r * math.sqrt(_TRISOLARIS_MASSES[home] / (q * math.sqrt(q)))
+    return ([pos[home][0] + _TRISOLARIS_REBIRTH_RADIUS, pos[home][1]],
+            [vel[home][0], vel[home][1] + speed])
+
+
+def _trisolaris_ephemeris() -> tuple:
+    """The whole day's integration, computed once per process.
+
+    Returns one sample per quarter-minute from the start of the preroll:
+    ``(suns, planet, dominance, civilization)`` where ``suns`` is three
+    ``(x, y)`` pairs, ``dominance`` is the strongest sun's pull over the next
+    strongest, and ``civilization`` counts the planet's deaths so far. About a
+    tenth of a second on a desktop; memoised because a contact sheet renders
+    144 frames in one process.
+    """
+    global _TRISOLARIS_EPHEMERIS
+    if _TRISOLARIS_EPHEMERIS is not None:
+        return _TRISOLARIS_EPHEMERIS
+    pos = [list(s) for s in _TRISOLARIS_INITIAL_SUNS]
+    vel = [list(v) for v in _TRISOLARIS_INITIAL_VELOCITIES]
+    p = list(_TRISOLARIS_INITIAL_PLANET)
+    pv = list(_TRISOLARIS_INITIAL_PLANET_VELOCITY)
+    ax, ay = _trisolaris_sun_accel(pos)
+    pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+    half = 0.5 * _TRISOLARIS_DT
+    dt = _TRISOLARIS_DT
+    civilization = 0
+    samples = []
+    total = (_TRISOLARIS_PREROLL_MINUTES + _TRISOLARIS_DIAL_MINUTES) * _TRISOLARIS_SAMPLES_PER_MINUTE
+    for _ in range(total):
+        ranked = sorted(pulls, reverse=True)
+        samples.append((tuple((s[0], s[1]) for s in pos), (p[0], p[1]),
+                        ranked[0] / ranked[1], civilization))
+        for _ in range(_TRISOLARIS_STEPS_PER_SAMPLE):
+            for i in range(3):
+                vel[i][0] += half * ax[i]
+                vel[i][1] += half * ay[i]
+            pv[0] += half * pax
+            pv[1] += half * pay
+            for i in range(3):
+                pos[i][0] += dt * vel[i][0]
+                pos[i][1] += dt * vel[i][1]
+            p[0] += dt * pv[0]
+            p[1] += dt * pv[1]
+            ax, ay = _trisolaris_sun_accel(pos)
+            pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+            for i in range(3):
+                vel[i][0] += half * ax[i]
+                vel[i][1] += half * ay[i]
+            pv[0] += half * pax
+            pv[1] += half * pay
+            # Checked every step, not every sample: a fast pass can dip inside
+            # the burn radius and come back out between two samples, and a
+            # sample-boundary check let one such planet per day survive.
+            burned = any((p[0] - s[0]) * (p[0] - s[0]) + (p[1] - s[1]) * (p[1] - s[1])
+                         < _TRISOLARIS_BURN_RADIUS2 for s in pos)
+            lost = p[0] * p[0] + p[1] * p[1] > _TRISOLARIS_LOST_RADIUS2
+            if burned or lost:
+                civilization += 1
+                p, pv = _trisolaris_rebirth(pos, vel)
+                pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+    _TRISOLARIS_EPHEMERIS = tuple(samples)
+    return _TRISOLARIS_EPHEMERIS
+
+
+def _trisolaris_index(time_str: str) -> int:
+    """Ephemeris index for a wall-clock time on the twelve-hour dial.
+
+    Noon and midnight both start the dial, so 00:30 and 12:30 see the same sky.
+    """
+    try:
+        hour, minute = (int(part) for part in time_str.split(":")[:2])
+    except (ValueError, AttributeError):
+        hour, minute = 0, 0
+    dial = (hour % 12) * 60 + minute % 60
+    return (_TRISOLARIS_PREROLL_MINUTES + dial) * _TRISOLARIS_SAMPLES_PER_MINUTE
+
+
+def _trisolaris_projection() -> tuple[float, float, float]:
+    """``(scale, offset_x, offset_y)`` fitting the suns' whole-day paths into
+    ``_TRISOLARIS_SKY`` at one fixed scale, aspect preserved.
+
+    Derived from the ephemeris rather than hardcoded so the fit cannot drift
+    from the constants it depends on. The planet is left out of the fit on
+    purpose: a lost planet flies far outside the system, and fitting it would
+    shrink the suns to a cluster in the middle of the panel.
+    """
+    global _TRISOLARIS_PROJECTION
+    if _TRISOLARIS_PROJECTION is not None:
+        return _TRISOLARIS_PROJECTION
+    xs = [s[0] for sample in _trisolaris_ephemeris() for s in sample[0]]
+    ys = [s[1] for sample in _trisolaris_ephemeris() for s in sample[0]]
+    x0, y0, x1, y1 = _TRISOLARIS_SKY
+    scale = min((x1 - x0) / (max(xs) - min(xs)), (y1 - y0) / (max(ys) - min(ys)))
+    ox = (x0 + x1) / 2 - scale * (max(xs) + min(xs)) / 2
+    oy = (y0 + y1) / 2 - scale * (max(ys) + min(ys)) / 2
+    _TRISOLARIS_PROJECTION = (scale, ox, oy)
+    return _TRISOLARIS_PROJECTION
+
+
+def _trisolaris_project(point) -> tuple[float, float]:
+    scale, ox, oy = _trisolaris_projection()
+    return ox + scale * point[0], oy + scale * point[1]
+
+
+def _trisolaris_era(time_str: str) -> tuple[bool, int]:
+    """``(stable, civilization_number)`` at ``time_str``."""
+    sample = _trisolaris_ephemeris()[_trisolaris_index(time_str)]
+    return sample[2] > _TRISOLARIS_STABLE_DOMINANCE, _TRISOLARIS_FIRST_CIVILIZATION + sample[3]
+
+
+def _trisolaris_ridge_y(x: float) -> int:
+    """Radar Peak's skyline: high on the left where the dish stands, falling
+    away under the quote column. Two incommensurate sines keep it from reading
+    as a ruled curve."""
+    fall = min(1.0, max(0.0, (x - 60) / 480))
+    base = 392 + 62 * fall * fall * (3 - 2 * fall)
+    peak = 16 * math.exp(-((x - _TRISOLARIS_DISH_X) / 70.0) ** 2)
+    return int(base - peak + 6 * math.sin(x * 0.031) + 4 * math.sin(x * 0.087 + 1.3))
+
+
+def _trisolaris_paint_sky(image: Image.Image) -> None:
+    """Black space and a seeded star field, one star in five a blue one.
+
+    Stars stay out of the whole text column — masthead, quote, byline and
+    warning — where a stray white pixel beside a letterform reads as a stroke
+    of it. Excluding only the quote block left 26 stars inside the header and
+    footer text on the committed seed.
+    """
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 799, 479), fill=SPECTRA6["black"])
+    px = image.load()
+    rng = random.Random(_TRISOLARIS_STAR_SEED)
+    column_x0 = _TRISOLARIS_COLUMN[0] - 10
+    for _ in range(230):
+        x = int(rng.random() * 800)
+        y = int(rng.random() * 440)
+        big = rng.random() < 0.1
+        blue = rng.random() < 0.18
+        if x >= column_x0 - 1:
+            continue
+        if y >= _trisolaris_ridge_y(x) - 4:
+            continue
+        ink = SPECTRA6["blue"] if blue else SPECTRA6["white"]
+        if big:
+            draw.rectangle((x, y, x + 1, y + 1), fill=ink)
+        else:
+            px[x, y] = ink
+
+
+def _trisolaris_stipple_line(px, points, *, salt: int, keep: float = 1.0, width: int = 1,
+                             ink=None, hot: float = 0.0, clip=(0, 0, 800, 480)) -> None:
+    """Stipple a polyline: each pixel along it survives with probability
+    ``keep`` (a position hash, so it is deterministic), clipped to ``clip``.
+
+    ``ink=None`` paints tangerine — yellow with probability
+    ``hot + (1 - hot) * 3/8``, red otherwise — so a warm line reads as warm
+    even at ``hot=0``, where solid red would sit within a few luminance points
+    of the panel's black. Every warm line on the frame (sun wakes, the ridge,
+    the transmission) goes through here; ``hot`` is how a sun's wake starts
+    yellow at the sun and cools toward the 3/8 floor as it ages.
+    """
+    cx0, cy0, cx1, cy1 = clip
+    warm_share = hot + (1.0 - hot) * 0.375
+    for (ax, ay), (bx, by) in zip(points, points[1:]):
+        steps = int(max(abs(bx - ax), abs(by - ay))) + 1
+        for k in range(steps + 1):
+            t = k / steps
+            x0 = int(ax + (bx - ax) * t)
+            y0 = int(ay + (by - ay) * t)
+            for dy in range(width):
+                x, y = x0, y0 + dy
+                if not (cx0 <= x < cx1 and cy0 <= y < cy1) or _flow_stroke_hash(x, y, salt) >= keep:
+                    continue
+                if ink is None:
+                    warm = _flow_stroke_hash(x, y, salt + 100) < warm_share
+                    px[x, y] = SPECTRA6["yellow"] if warm else SPECTRA6["red"]
+                else:
+                    px[x, y] = ink
+
+
+def _trisolaris_paint_orbits(image: Image.Image, index: int) -> None:
+    """The last hour of each body's path, cooling as it ages.
+
+    A sun's trail starts yellow at the sun and cools to tangerine over its
+    first 40%, thinning toward the oldest end — a hot body leaving a cooling
+    wake. The
+    planet's trail is sparse white, and is drawn only back to the planet's most
+    recent rebirth: a new civilization begins in a new orbit, and the jump
+    between the two is not a path the planet travelled.
+    """
+    px = image.load()
+    ephemeris = _trisolaris_ephemeris()
+    span = _TRISOLARIS_TRAIL_MINUTES * _TRISOLARIS_SAMPLES_PER_MINUTE
+    start = max(1, index - span)
+    for k in range(start, index + 1):
+        age = (index - k) / span
+        keep = 0.85 - 0.7 * age
+        before, after = ephemeris[k - 1], ephemeris[k]
+        for i in range(3):
+            segment = [_trisolaris_project(before[0][i]), _trisolaris_project(after[0][i])]
+            _trisolaris_stipple_line(px, segment, salt=40 + i, keep=keep,
+                                     hot=max(0.0, 1.0 - age * 2.5), clip=_TRISOLARIS_ORRERY_CLIP)
+        if before[3] == ephemeris[index][3]:
+            segment = [_trisolaris_project(before[1]), _trisolaris_project(after[1])]
+            _trisolaris_stipple_line(px, segment, salt=47, keep=keep * 0.7,
+                                     ink=SPECTRA6["white"], clip=_TRISOLARIS_ORRERY_CLIP)
+
+
+def _trisolaris_paint_bodies(image: Image.Image, index: int) -> None:
+    """Three suns as gold blooms, then the planet as a blue world with a white
+    lit limb. The suns share one mask so two near each other merge into one
+    glare rather than double-exposing. The halo is confined to empty sky, so
+    it dims into the trails and the dish rather than painting over them."""
+    sample = _trisolaris_ephemeris()[index]
+    mask = Image.new("L", image.size, 0)
+    mdraw = ImageDraw.Draw(mask)
+    for (sx, sy), radius in zip((_trisolaris_project(s) for s in sample[0]), _TRISOLARIS_SUN_RADII):
+        mdraw.ellipse((sx - radius, sy - radius, sx + radius, sy + radius), fill=255)
+    paint_neon_mask(
+        image, mask, SPECTRA6["yellow"], SPECTRA6["red"],
+        radius=6, gamma=1.3, cap=0.75, tile=BAYER_8x8,
+        glow_minor=SPECTRA6["yellow"], glow_minor_share=0.375,
+        core_minor=SPECTRA6["white"], core_minor_share=0.25,
+        # Only onto empty sky: a sun passing the lower-left of the sky box
+        # would otherwise stipple its halo over the dish's wavefront arcs.
+        ground=frozenset({SPECTRA6["black"], SPECTRA6["blue"]}),
+    )
+    x, y = _trisolaris_project(sample[1])
+    cx0, cy0, cx1, cy1 = _TRISOLARIS_ORRERY_CLIP
+    if cx0 + 4 <= x < cx1 - 4 and cy0 + 4 <= y < cy1 - 4:
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=SPECTRA6["blue"], outline=SPECTRA6["white"])
+
+
+def _trisolaris_dish_geometry(ridge_top: int):
+    """Pedestal polygon, dish polygon, feed tip and aim for the Red Coast
+    antenna.
+
+    The dish is a parabolic section in profile: the reflecting face curves
+    toward the aim, and the back is thickest at the vertex and thins to the
+    rim, so the silhouette reads as a bowl rather than a flat plate.
+    """
+    x = _TRISOLARIS_DISH_X
+    pivot = (x, ridge_top - 46)
+    pedestal = [(x - 20, ridge_top + 6), (x - 7, pivot[1] + 4), (x + 7, pivot[1] + 4),
+                (x + 20, ridge_top + 6)]
+    # Aimed at the system's barycentre — the origin of the integration's
+    # coordinates, since the initial conditions carry zero total momentum —
+    # so the transmission points where the three suns actually dance.
+    tx, ty = _trisolaris_project((0.0, 0.0))
+    aim = math.atan2(ty - pivot[1], tx - pivot[0])
+    ux, uy = math.cos(aim), math.sin(aim)         # along the dish axis
+    vx, vy = -uy, ux                              # across the aperture
+    half, depth, back = 46, 21, 9
+    face, rear = [], []
+    for k in range(-12, 13):
+        s = k / 12.0
+        d = depth * s * s
+        face.append((pivot[0] + half * s * vx + d * ux, pivot[1] + half * s * vy + d * uy))
+        b = d - back * (1 - s * s)
+        rear.append((pivot[0] + half * s * vx + b * ux, pivot[1] + half * s * vy + b * uy))
+    feed = (pivot[0] + 40 * ux, pivot[1] + 40 * uy)
+    return pedestal, face, rear, pivot, feed, (ux, uy)
+
+
+def _trisolaris_paint_red_coast(image: Image.Image) -> None:
+    """Radar Peak and the Red Coast dish, drawn as line-work.
+
+    The ridge is a tangerine crest line with two fainter contours stepping
+    down the slope behind it, black below; the dish is white line-work — face,
+    back, feed struts, pedestal — standing on the peak. A black silhouette
+    against a dusk glow was the first cut and failed both ways: the glow read
+    as a red dune field sitting on the ridge, and the black dish vanished
+    wherever it rose above it. Line-work also matches the orrery above, which
+    is itself a plot of paths rather than a painting.
+
+    The transmission is a fan of wavefront arcs off the feed, along the dish
+    axis and thinning as they spread — a straight line from the dish to the
+    suns was tried and read as one more orbit trail.
+    """
+    draw = ImageDraw.Draw(image)
+    skyline = [(x, _trisolaris_ridge_y(x)) for x in range(0, 801, 4)]
+    draw.polygon(skyline + [(800, 480), (0, 480)], fill=SPECTRA6["black"])
+    px = image.load()
+    _trisolaris_stipple_line(px, skyline, salt=61, width=2)
+    for step, keep in ((11, 0.55), (24, 0.3)):
+        contour = [(x, _trisolaris_ridge_y(x) + step + int(3 * math.sin(x * 0.05 + step)))
+                   for x in range(0, 801, 4)]
+        _trisolaris_stipple_line(px, contour, salt=63 + step, keep=keep)
+
+    ridge_top = _trisolaris_ridge_y(_TRISOLARIS_DISH_X)
+    pedestal, face, rear, pivot, feed, (ux, uy) = _trisolaris_dish_geometry(ridge_top)
+    white = SPECTRA6["white"]
+    draw.polygon(pedestal, fill=SPECTRA6["black"], outline=white)
+    draw.line([(pivot[0] - 4, pivot[1] + 4), (pedestal[0][0] + 6, ridge_top), (pedestal[3][0] - 6, pivot[1] + 12)],
+              fill=white, width=1)
+    outline = [(round(a), round(b)) for a, b in face + rear[::-1]]
+    draw.polygon(outline, fill=SPECTRA6["black"])
+    draw.line([(round(a), round(b)) for a, b in face], fill=white, width=2)
+    draw.line([(round(a), round(b)) for a, b in rear], fill=white, width=1)
+    for strut in (face[0], face[-1]):
+        draw.line([strut, feed], fill=white, width=1)
+    draw.ellipse((feed[0] - 2, feed[1] - 2, feed[0] + 2, feed[1] + 2), fill=SPECTRA6["yellow"])
+
+    aim = math.atan2(uy, ux)
+    for ring, radius in enumerate(range(16, 76, 12)):
+        keep = 0.95 - 0.16 * ring
+        spread = math.radians(16 + 4 * ring)
+        steps = int(radius * spread * 2) + 1
+        arc = [(feed[0] + radius * math.cos(aim - spread + 2 * spread * k / steps),
+                feed[1] + radius * math.sin(aim - spread + 2 * spread * k / steps))
+               for k in range(steps + 1)]
+        _trisolaris_stipple_line(px, arc, salt=91 + ring, keep=keep)
+
+
+def _trisolaris_paint_header(draw: ImageDraw.ImageDraw, time_str: str) -> None:
+    """``三体`` masthead, the title, the civilization number and the era.
+
+    The era carries its own glyph: three small discs for the three suns, one
+    filled in a stable era (the planet has a sun of its own) and all three in
+    a chaotic one.
+    """
+    stable, civilization = _trisolaris_era(time_str)
+    col_x0, col_x1 = _TRISOLARIS_COLUMN
+    han = load_font([YUJI_BOKU_REGULAR, *META_FONT_BOLD_CANDIDATES], 46)
+    draw.text((col_x0, 22), "三体", font=han, fill=SPECTRA6["white"])
+    han_w = draw.textlength("三体", font=han)
+    chrome = load_font([SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], 11)
+    x = col_x0 + han_w + 14
+    draw_tracked(draw, (x, 28), "THE THREE-BODY PROBLEM", chrome, SPECTRA6["white"], tracking=1)
+    draw_tracked(draw, (x, 47), f"CIVILIZATION NO. {civilization}", chrome, SPECTRA6["yellow"], tracking=1)
+    era = "STABLE ERA · REHYDRATE" if stable else "CHAOTIC ERA · DEHYDRATE"
+    draw_tracked(draw, (x, 66), era, chrome, SPECTRA6["white"] if stable else SPECTRA6["yellow"], tracking=1)
+    # A dotted rule closes the header, ending in the era glyph: three discs
+    # for the three suns, one filled in a stable era (the planet has a sun of
+    # its own) and all three in a chaotic one.
+    glyph_x0 = col_x1 - 40
+    for xx in range(col_x0, glyph_x0 - 6, 4):
+        draw.point((xx, 100), fill=SPECTRA6["white"])
+    for k in range(3):
+        cx = glyph_x0 + 4 + k * 14
+        filled = (not stable) or k == 0
+        draw.ellipse((cx - 4, 96, cx + 4, 104), fill=SPECTRA6["yellow"] if filled else None,
+                     outline=SPECTRA6["yellow"])
+
+
+def _trisolaris_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> int:
+    """The quote in the dark sky: solid white prose, the matched phrase lit as
+    sunlight. Returns the block's bottom y.
+
+    The prose is deliberately unlit. A faint cold-blue halo was tried to make
+    it read as starlight, and at radius 2 it read instead as a blue outline
+    around every letter; white on black needs no help.
+    """
+    prose, hot, bottom = wrap_quote_into_masks(
+        draw, image.size, quote_row, _TRISOLARIS_QUOTE_RECT, theme="trisolaris",
+        font_max=30, font_min=14, line_height_mult=1.32,
+    )
+    image.paste(SPECTRA6["white"], (0, 0), prose.point(lambda v: 255 if v > 128 else 0))
+    paint_neon_mask(
+        image, hot, SPECTRA6["yellow"], SPECTRA6["red"],
+        radius=4, gamma=1.5, cap=0.6, ground=frozenset({SPECTRA6["black"], SPECTRA6["blue"]}),
+        tile=BAYER_8x8,
+        glow_minor=SPECTRA6["yellow"], glow_minor_share=0.375,
+    )
+    return bottom
+
+
+def _trisolaris_paint_credits(draw: ImageDraw.ImageDraw, quote_row: dict, top: int) -> None:
+    col_x0, col_x1 = _TRISOLARIS_COLUMN
+    font = load_font([TITILLIUM_ITALIC, *META_FONT_CANDIDATES], 15)
+    draw_truncated_centred_byline(draw, quote_row, centre=(col_x0 + col_x1) // 2,
+                                  baseline=min(412, top + 26), max_width=col_x1 - col_x0,
+                                  font=font, fill=SPECTRA6["white"])
+
+
+def _trisolaris_paint_warning(draw: ImageDraw.ImageDraw) -> None:
+    """The pacifist's reply, three times along the foot.
+
+    Solid yellow, not red: at 11px red barely clears the panel's black, and a
+    two-ink tangerine shreds a letterform that small.
+    """
+    col_x0, col_x1 = _TRISOLARIS_COLUMN
+    font = load_font([SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], 11)
+    for repeats in (3, 2, 1):
+        text = "  ".join([_TRISOLARIS_WARNING] * repeats)
+        width = draw.textlength(text, font=font)
+        if width <= col_x1 - col_x0:
+            break
+    draw.text(((col_x0 + col_x1 - width) / 2, _TRISOLARIS_WARNING_Y), text, font=font, fill=SPECTRA6["yellow"])
+
+
+def render_trisolaris_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """The Trisolaran sky (see the module section comment above)."""
+    index = _trisolaris_index(time_str)
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["black"])
+    _trisolaris_paint_sky(image)
+    _trisolaris_paint_orbits(image, index)
+    _trisolaris_paint_red_coast(image)
+    _trisolaris_paint_bodies(image, index)
+    draw = ImageDraw.Draw(image)
+    _trisolaris_paint_header(draw, time_str)
+    bottom = _trisolaris_paint_quote(image, draw, quote_row)
+    _trisolaris_paint_credits(draw, quote_row, bottom)
+    _trisolaris_paint_warning(draw)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+# ---------------------------------------------------------------------------
+# biomech — H. R. Giger's biomechanical wall round a Beksiński dusk
+# ---------------------------------------------------------------------------
+# Two painters who never shared a canvas, and share one here because each
+# supplies what the other lacks. Giger's work is *surface*: airbrushed
+# monochrome flesh-machinery — vertebrae stacked like pistons, corrugated
+# hoses, elongated skulls — every form lit so it reads as wet bone and chrome.
+# Beksiński's is *distance*: burning dusks over desolate plains, cathedrals
+# built of something that was once alive, shrouded figures, leaning crosses,
+# everything dissolving into haze. So the page is a portal: a pointed arch cut
+# through a Giger wall, and through it a Beksiński evening.
+#
+# **Two render-time "plates", neither committed.** Every other theme that
+# dithers continuous tone (``anna_atkins``, ``grimdark``, ``letter``,
+# ``daguerreotype``, ``autochrome``, ``control``) ships a PNG and dithers it on
+# load. This one *paints* both plates procedurally in continuous tone and
+# dithers them in-process:
+#
+# * **The wall is a lit height field** — the reason ``shade_height_field``
+#   exists. Blurred shapes unioned with ``ImageChops.lighter`` give each form a
+#   rounded profile (a line blurred to a third of its width is a tube, an
+#   ellipse blurred is a dome); carving is ``ImageChops.subtract`` (eye
+#   sockets, the grooves of a corrugated hose). The field is shaded
+#   Blinn-Phong under the house upper-left light, darkened by its own height
+#   (recesses fall to black, which is Giger's depth cue) and by a cavity term
+#   (blurred minus sharp), then Floyd-Steinberg-dithered to **white + black
+#   only**. The airbrush survives as a fine grain whose density tracks the
+#   tone, and specular glints blow to clean white. The wall is restricted to
+#   K+W for the reason ``daguerreotype``'s plate is: a neutral grey sits
+#   almost equidistant from black, white *and* red in RGB, so a four-ink
+#   dither would scatter red specks through the bone.
+# * **The red is rim light, not pigment.** A second shading pass lights the
+#   wall from the portal — from the right on the left pier, from the left on
+#   the right — and where that light rakes a surface, red is stippled in at a
+#   density following it (a ``BAYER_8x8`` threshold, composited C-speed). The
+#   burning sky is *reflected* on the machinery, which is what ties the two
+#   halves of the page into one space instead of a frame pasted round a
+#   picture.
+# * **The dusk is painted, then dithered to K/R/Y/W.** A per-row gradient
+#   (black zenith, blood-red middle sky, a molten horizon), streaked cloud
+#   modulation from stretched seeded noise, a half-set sun, then silhouettes
+#   in atmospheric perspective — each layer's colour is black mixed toward the
+#   sky behind it, the further the more — and a low fog over the horizon.
+#   Beksiński's palette is exactly these four inks' territory; blue and green
+#   are left out so error diffusion cannot cool the fire.
+#
+# Both plates are quote-independent, so the composed background is built once
+# per process (``_BIOMECH_BACKGROUND``) and every render pastes text over a
+# copy — the 144-frame contact sheet pays for the painting once.
+#
+# **The quote** sits in the dark upper sky, where the zenith gradient is
+# nearly black: bone-white Spectral with a 2 px black halo (the ``anna_atkins``
+# answer — a halo, not a panel, so the arch keeps its view), and the matched
+# phrase an ember — solid yellow core, red bloom through ``paint_neon_mask``
+# with ``ground`` pinned to black so the glow can only spill onto the night.
+#
+# **The time is the plate's title, hour only**: ``BIOMECHANOID · XI`` on the
+# sill's cartouche. Giger titled whole series with Roman numerals, so a number
+# on the plate is the work's own furniture rather than a clock bolted on — the
+# ``tarot`` / ``plaque`` posture. The minute stays with the matched phrase,
+# pinned byte-identical across the minutes of an hour by ``TestBiomechFrame``.
+#
+# Composed at the canonical 800x480 and NEAREST-downsampled for a non-native
+# request — the ``metro`` convention.
+# ---------------------------------------------------------------------------
+_BIOMECH_ARCH = (126, 674, 96, 12, 452)     # left x, right x, springline y, apex y, sill y
+_BIOMECH_QUOTE_RECT = (172, 58, 628, 262)
+_BIOMECH_HORIZON = 372
+_BIOMECH_SUN = (402, 356, 42)               # centre x, centre y, radius
+_BIOMECH_BYLINE_BASELINE = 440
+_BIOMECH_PLATE = (306, 457, 494, 477)
+_BIOMECH_SEED = 0xB10
+_BIOMECH_SCENE_PALETTE = [SPECTRA6["black"], SPECTRA6["red"], SPECTRA6["yellow"], SPECTRA6["white"]]
+_BIOMECH_WALL_PALETTE = [SPECTRA6["black"], SPECTRA6["white"]]
+# The dusk, as (y, rgb) stops interpolated per row: a near-black zenith the
+# quote can sit on, a blood-red middle sky, a molten band at the horizon, and
+# a ground that falls back to black toward the sill.
+_BIOMECH_SKY_STOPS = (
+    (0, (0, 0, 0)), (168, (0, 0, 0)), (236, (52, 3, 2)), (292, (138, 14, 6)),
+    (334, (206, 58, 12)), (360, (246, 140, 36)), (_BIOMECH_HORIZON, (255, 196, 92)),
+)
+_BIOMECH_GROUND_STOPS = ((_BIOMECH_HORIZON, (96, 16, 6)), (404, (34, 4, 2)), (480, (4, 0, 0)))
+# The ruined cathedral's spires, as (centre x, half width, top y). The tallest
+# stands in front of the sun so it reads against the brightest thing on the page.
+_BIOMECH_SPIRES = (
+    (344, 3, 328), (356, 5, 306), (368, 3, 320), (381, 6, 292), (402, 9, 268),
+    (421, 5, 296), (434, 3, 318), (447, 5, 304), (459, 3, 330),
+)
+# Crosses on the horizon to the left, as (x, height, lean): stood against the
+# brightest band of sky so a thin black stroke still reads.
+_BIOMECH_CROSSES = ((172, 30, -3), (206, 24, 2), (236, 19, -2), (262, 15, 3), (284, 12, -1), (302, 9, 1))
+_BIOMECH_BACKGROUND: dict = {}
+
+
+def _biomech_hour(time_str: str) -> int:
+    try:
+        hour = int(str(time_str).split(":", 1)[0])
+    except ValueError:
+        hour = 12
+    return hour % 12 or 12
+
+
+def _biomech_arch_halfwidth(y: float) -> float:
+    """Half the opening's width at row ``y``: straight piers below the
+    springline, then a curve that closes to a point at the apex."""
+    left, right, spring, apex, _ = _BIOMECH_ARCH
+    half = (right - left) / 2
+    if y >= spring:
+        return half
+    if y <= apex:
+        return 0.0
+    t = (spring - y) / (spring - apex)
+    return half * (1 - t ** 1.7) ** 0.62
+
+
+def _biomech_arch_outline(offset: float = 0.0) -> list[tuple[float, float]]:
+    """The opening's edge from the left sill up over the apex to the right
+    sill, pushed ``offset`` px outward (into the wall)."""
+    left, right, spring, apex, sill = _BIOMECH_ARCH
+    cx = (left + right) / 2
+    ys = [sill - i for i in range(0, int(sill - apex) + 1, 4)] + [apex]
+    side = [(cx - _biomech_arch_halfwidth(y) - offset, y) for y in ys]
+    side[-1] = (cx, apex - offset)
+    return side + [(2 * cx - x, y) for x, y in reversed(side[:-1])]
+
+
+def _biomech_opening_mask(size) -> Image.Image:
+    mask = Image.new("L", size, 0)
+    ImageDraw.Draw(mask).polygon([(round(x), round(y)) for x, y in _biomech_arch_outline()], fill=255)
+    return mask
+
+
+def _biomech_lerp_stops(stops, y: float):
+    for (y0, c0), (y1, c1) in zip(stops, stops[1:]):
+        if y <= y1:
+            t = 0.0 if y1 == y0 else max(0.0, (y - y0) / (y1 - y0))
+            return tuple(round(a + (b - a) * t) for a, b in zip(c0, c1))
+    return stops[-1][1]
+
+
+def _biomech_haze(colour, amount: float):
+    """Black pushed ``amount`` of the way toward ``colour`` — how far a
+    silhouette has dissolved into the air in front of it."""
+    return tuple(round(c * amount) for c in colour)
+
+
+def _biomech_smooth_noise(size, cells, seed: int) -> Image.Image:
+    """Seeded value noise: a coarse grid of white noise, bicubic-upsampled.
+    ``cells`` is the grid's (columns, rows), so an unequal pair stretches the
+    noise into streaks."""
+    return _tarot_noise(cells[0], cells[1], seed).resize(size, Image.Resampling.BICUBIC)
+
+
+def _biomech_paint_sky(image: Image.Image) -> None:
+    """The dusk and the ground: per-row gradient, streaked cloud, a half-set sun."""
+    width, height = image.size
+    column = Image.new("RGB", (1, height))
+    for y in range(height):
+        stops = _BIOMECH_SKY_STOPS if y <= _BIOMECH_HORIZON else _BIOMECH_GROUND_STOPS
+        column.putpixel((0, y), _biomech_lerp_stops(stops, y))
+    base = column.resize((width, height), Image.Resampling.NEAREST)
+
+    # Cloud: long horizontal streaks, brightening and darkening the middle sky
+    # only — the zenith stays black for the quote, the horizon stays molten.
+    envelope = Image.new("L", (1, height))
+    for y in range(height):
+        e = 0.0
+        if 170 < y < _BIOMECH_HORIZON:
+            e = math.sin(math.pi * (y - 170) / (_BIOMECH_HORIZON - 170)) ** 1.4
+        envelope.putpixel((0, y), round(255 * e))
+    envelope = envelope.resize((width, height), Image.Resampling.NEAREST)
+    streaks = _biomech_smooth_noise((width, height), (9, 38), _BIOMECH_SEED)
+    light = ImageChops.multiply(streaks.point(lambda v: max(0, v - 132) * 3), envelope)
+    dark = ImageChops.multiply(streaks.point(lambda v: max(0, 112 - v) * 3), envelope)
+    bright = ImageEnhance.Brightness(base).enhance(1.9)
+    image.paste(Image.composite(bright, base, light))
+    image.paste(Image.composite(ImageEnhance.Brightness(image).enhance(0.35), image, dark))
+
+    # Sun: a wide glow and a pale disc, half set behind the horizon.
+    sx, sy, sr = _BIOMECH_SUN
+    glow = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(glow).ellipse((sx - sr * 2.6, sy - sr * 2.2, sx + sr * 2.6, sy + sr * 2.2), fill=150)
+    sky = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(sky).rectangle((0, 0, width, _BIOMECH_HORIZON), fill=255)
+    glow = ImageChops.multiply(glow.filter(ImageFilter.GaussianBlur(sr)), sky)
+    image.paste(Image.composite(Image.new("RGB", (width, height), (255, 214, 120)), image, glow))
+    disc = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(disc).ellipse((sx - sr, sy - sr, sx + sr, sy + sr), fill=255)
+    image.paste((255, 244, 206), (0, 0), ImageChops.multiply(disc.filter(ImageFilter.GaussianBlur(2)), sky))
+
+
+def _biomech_paint_landscape(image: Image.Image) -> None:
+    """Beksiński's distance: a far ridge, a cathedral of bone spires against
+    the sun, a shrouded giant, leaning crosses, then a fog over the horizon."""
+    width, height = image.size
+    draw = ImageDraw.Draw(image)
+    hz = _BIOMECH_HORIZON
+    horizon_sky = _biomech_lerp_stops(_BIOMECH_SKY_STOPS, 330)
+    rng = random.Random(_BIOMECH_SEED)
+
+    # Far ridge: a low ragged line, most dissolved into the air.
+    ridge = [(0, hz + 2)]
+    for x in range(0, width + 12, 12):
+        ridge.append((x, hz - 2 - rng.random() * 9 - (7 if 520 < x < 640 else 0)))
+    ridge.append((width, hz + 2))
+    draw.polygon([(round(x), round(y)) for x, y in ridge], fill=_biomech_haze(horizon_sky, 0.52))
+
+    # The shrouded giant, right of centre: a hooded figure, half-hazed.
+    gx, top = 574, 280
+    giant = _biomech_haze(horizon_sky, 0.26)
+    draw.ellipse((gx - 6, top, gx + 8, top + 16), fill=giant)             # hood
+    shroud = [(gx - 5, top + 10), (gx + 9, top + 9), (gx + 13, top + 26), (gx + 12, top + 60),
+              (gx + 19, hz)]
+    for i in range(8):
+        shroud.append((gx + 19 - i * 5, hz - (3 if i % 2 else 10)))
+    shroud += [(gx - 21, hz - 5), (gx - 13, top + 58), (gx - 11, top + 26)]
+    draw.polygon([(round(x), round(y)) for x, y in shroud], fill=giant)
+
+    # The cathedral: organ-pipe spires of bone, eroded and thorned, a low
+    # nave, lancets lit by the sun behind.
+    near = (6, 1, 0)
+    draw.polygon([(330, hz + 3), (336, 346), (350, 336), (452, 336), (468, 348), (474, hz + 3)], fill=near)
+    for cx, hw, sy in _BIOMECH_SPIRES:
+        jag = rng.random() * 4
+        draw.polygon([(cx - hw, hz + 3), (cx - hw, sy + hw * 5), (cx - hw * 0.4, sy + hw * 2 + jag),
+                      (cx, sy), (cx + hw * 0.5, sy + hw * 2), (cx + hw, sy + hw * 5 + jag),
+                      (cx + hw, hz + 3)], fill=near)
+        for k in range(4):                                          # thorns
+            ty = sy + hw * 5 + 8 + k * 11
+            if ty < 336:
+                side = -1 if (k + cx) % 2 else 1
+                draw.polygon([(cx + side * hw, ty), (cx + side * (hw + 4), ty - 7),
+                              (cx + side * hw, ty + 3)], fill=near)
+    for wx in (356, 381, 402, 421, 447):                            # lancets, lit from behind
+        draw.polygon([(wx - 2, 362), (wx - 2, 350), (wx, 345), (wx + 2, 350), (wx + 2, 362)],
+                     fill=(250, 170, 50))
+
+    # Crosses on the horizon, leaning, receding.
+    for cx, h, lean in _BIOMECH_CROSSES:
+        w = 2 if h > 16 else 1
+        draw.line([(cx, hz + 1), (cx + lean, hz - h)], fill=near, width=w)
+        ay = hz - h * 0.72
+        arm = h * 0.3
+        draw.line([(cx + lean * 0.7 - arm, ay), (cx + lean * 0.7 + arm, ay - lean * 0.3)], fill=near, width=w)
+
+    # Fog: a low band across the horizon, streaked, veiling every base.
+    fog = Image.new("L", (1, height))
+    for y in range(height):
+        fog.putpixel((0, y), round(150 * math.exp(-((y - hz + 2) / 9.0) ** 2)))
+    fog = ImageChops.multiply(fog.resize((width, height), Image.Resampling.NEAREST),
+                              _biomech_smooth_noise((width, height), (14, 60), _BIOMECH_SEED + 1))
+    fog = fog.point(lambda v: min(255, v * 2))
+    image.paste(Image.composite(Image.new("RGB", (width, height), (168, 40, 14)), image, fog))
+
+
+def _biomech_layer(size, paint, blur: float, peak: int) -> Image.Image:
+    """One form of the wall: painted solid, blurred into a rounded profile,
+    scaled to its height. ``paint`` receives an ``ImageDraw`` on an ``"L"`` layer."""
+    layer = Image.new("L", size, 0)
+    paint(ImageDraw.Draw(layer))
+    layer = layer.filter(ImageFilter.GaussianBlur(blur))
+    return layer if peak >= 255 else layer.point(lambda v: v * peak // 255)
+
+
+def _biomech_resample(points, step: float):
+    """Points every ``step`` px of arc length along a polyline, with the unit
+    normal there — where a corrugated hose's grooves go."""
+    out = []
+    carry = 0.0
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        seg = math.hypot(x1 - x0, y1 - y0)
+        if seg == 0:
+            continue
+        ux, uy = (x1 - x0) / seg, (y1 - y0) / seg
+        d = carry
+        while d < seg:
+            out.append((x0 + ux * d, y0 + uy * d, -uy, ux))
+            d += step
+        carry = d - seg
+    return out
+
+
+def _biomech_hose(size, points, width: int, peak: int, pitch: float) -> Image.Image:
+    """A corrugated hose: a blurred line for the tube, grooves carved across
+    it every ``pitch`` px so the light picks out each rib."""
+    pts = [(round(x), round(y)) for x, y in points]
+    tube = _biomech_layer(size, lambda d: d.line(pts, fill=255, width=width, joint="curve"),
+                          width * 0.26, peak)
+    if pitch:
+        half = width / 2 + 1
+        grooves = _biomech_layer(size, lambda d: [
+            d.line([(round(x - nx * half), round(y - ny * half)), (round(x + nx * half), round(y + ny * half))],
+                   fill=255, width=2)
+            for x, y, nx, ny in _biomech_resample(points, pitch)], 0.8, int(peak * 0.3))
+        tube = ImageChops.subtract(tube, grooves)
+    return tube
+
+
+def _biomech_skull(size, cx: int, top: int) -> Image.Image:
+    """An elongated skull crowning a pier: cranium dome, carved sockets, a
+    nasal cavity and a row of teeth."""
+    head = _biomech_layer(size, lambda d: (
+        d.ellipse((cx - 32, top, cx + 32, top + 70), fill=255),
+        d.ellipse((cx - 24, top + 46, cx + 24, top + 92), fill=255)), 5, 236)
+    sockets = _biomech_layer(size, lambda d: (
+        d.ellipse((cx - 23, top + 44, cx - 5, top + 62), fill=255),
+        d.ellipse((cx + 5, top + 44, cx + 23, top + 62), fill=255),
+        d.polygon([(cx - 4, top + 72), (cx + 4, top + 72), (cx, top + 64)], fill=255)), 2.2, 220)
+    head = ImageChops.subtract(head, sockets)
+    teeth = _biomech_layer(size, lambda d: [
+        d.rounded_rectangle((cx - 15 + i * 6, top + 78, cx - 11 + i * 6, top + 89), radius=2, fill=255)
+        for i in range(6)], 1.0, 250)
+    return ImageChops.lighter(head, teeth)
+
+
+def _biomech_vertebrae(size, cx: int, y0: int, y1: int, pitch: int) -> Image.Image:
+    """A spinal column: stacked vertebral bodies, each with a spinous knob and
+    two transverse processes swept downward."""
+    def paint_bodies(d):
+        for y in range(y0, y1, pitch):
+            d.rounded_rectangle((cx - 23, y - 10, cx + 23, y + 10), radius=9, fill=255)
+
+    def paint_processes(d):
+        for y in range(y0, y1, pitch):
+            for s in (-1, 1):
+                d.line([(cx + s * 20, y), (cx + s * 40, y + 7), (cx + s * 46, y + 14)], fill=255, width=6,
+                       joint="curve")
+
+    def paint_knobs(d):
+        for y in range(y0, y1, pitch):
+            d.ellipse((cx - 7, y - 7, cx + 7, y + 7), fill=255)
+
+    bodies = _biomech_layer(size, paint_bodies, 3.6, 214)
+    processes = _biomech_layer(size, paint_processes, 2.0, 176)
+    knobs = _biomech_layer(size, paint_knobs, 2.0, 250)
+    return ImageChops.lighter(ImageChops.lighter(bodies, processes), knobs)
+
+
+def _biomech_height_field(size, opening: Image.Image) -> Image.Image:
+    """The Giger wall as heights: a textured ground plane, then piers of
+    vertebrae and hoses crowned by skulls, a ribbed archivolt round the
+    opening, tendrils in the spandrels and a hose along the sill."""
+    width, height = size
+    left, right, _, _, sill = _BIOMECH_ARCH
+    wall = ImageOps.invert(opening)
+    grain = _biomech_smooth_noise(size, (width // 3, height // 3), _BIOMECH_SEED + 2)
+    flesh = _biomech_smooth_noise(size, (width // 26, height // 26), _BIOMECH_SEED + 3)
+    ground = ImageChops.add(grain.point(lambda v: v * 34 // 255), flesh.point(lambda v: 40 + v * 60 // 255))
+    field = ImageChops.multiply(ground, wall.filter(ImageFilter.GaussianBlur(2)))
+
+    forms = []
+    for cx in (left // 2, (right + width) // 2):
+        forms.append(_biomech_skull(size, cx, 8))
+        forms.append(_biomech_vertebrae(size, cx, 118, sill - 6, 27))
+        for dx, phase in ((-47, 0.0), (47, 1.7)):
+            pts = [(cx + dx + 4 * math.sin(y / 23 + phase), y) for y in range(96, sill + 4, 6)]
+            forms.append(_biomech_hose(size, pts, 14, 224, 6))
+    rim = _biomech_arch_outline(9)
+    forms.append(_biomech_hose(size, rim, 15, 244, 13))
+    forms.append(_biomech_hose(size, _biomech_arch_outline(31), 12, 214, 6))
+    # Spandrel tendrils: hoses sweeping out of the top edge and down the arch.
+    for sx, ex, drop in ((140, 262, 46), (178, 330, 22), (660, 538, 46), (622, 470, 22)):
+        pts = [(sx + (ex - sx) * t, -8 + drop * t * t + 6 * math.sin(t * 6)) for t in [i / 20 for i in range(21)]]
+        forms.append(_biomech_hose(size, pts, 12, 206, 5))
+    forms.append(_biomech_hose(size, [(-10, sill + 16), (width + 10, sill + 16)], 20, 230, 6))
+    for form in forms:
+        field = ImageChops.lighter(field, form)
+    # Nothing of the wall stands inside the opening, but the rim may overhang it.
+    return ImageChops.multiply(field, ImageChops.lighter(wall, _biomech_rim_overhang(size)))
+
+
+def _biomech_rim_overhang(size) -> Image.Image:
+    """The archivolt's inner lip: a band just inside the opening where the
+    rim is allowed to overhang the view."""
+    band = Image.new("L", size, 0)
+    ImageDraw.Draw(band).line([(round(x), round(y)) for x, y in _biomech_arch_outline(9)],
+                              fill=255, width=26, joint="curve")
+    return band
+
+
+def _biomech_bayer_field(size) -> Image.Image:
+    """``BAYER_8x8`` tiled across the canvas as an ``"L"`` image of rank
+    thresholds, so a density map can be stippled with one C-speed compare."""
+    width, height = size
+    rows = [bytes(BAYER_8x8[r][x % 8] * 4 + 2 for x in range(width)) for r in range(8)]
+    return Image.frombytes("L", size, b"".join(rows[y % 8] for y in range(height)))
+
+
+def _biomech_paint_wall(image: Image.Image, opening: Image.Image) -> None:
+    """Shade the height field, dither it to K+W, stipple in the red rim light
+    from the portal, and lay it over the scene outside the opening."""
+    size = image.size
+    width = size[0]
+    field = _biomech_height_field(size, opening)
+    tone = shade_height_field(field, relief=0.03, ambient=0.06, diffuse=0.9, specular=0.85, shininess=22)
+    # Recesses fall to black: the ground plane sits low and dark, only the
+    # forms stand up into the light.
+    depth = field.point(lambda v: round(255 * min(1.0, max(0.0, v - 28) / 172) ** 1.25))
+    cavity = ImageChops.subtract(field.filter(ImageFilter.GaussianBlur(5)), field)
+    tone = ImageChops.multiply(tone, depth)
+    tone = ImageChops.multiply(tone, cavity.point(lambda v: 255 - min(255, v * 5)))
+    wall = dither_image_to_palette(tone.convert("RGB"), _BIOMECH_WALL_PALETTE)
+
+    # Rim light from the fire: each pier lit from the portal side, low.
+    rim_l = shade_height_field(field, light=(0.9, 0.25, 0.25), relief=0.03,
+                               ambient=0.0, diffuse=1.0, specular=0.0, shininess=1)
+    rim_r = shade_height_field(field, light=(-0.9, 0.25, 0.25), relief=0.03,
+                               ambient=0.0, diffuse=1.0, specular=0.0, shininess=1)
+    side = Image.new("L", size, 0)
+    ImageDraw.Draw(side).rectangle((0, 0, width // 2, size[1]), fill=255)
+    rim = Image.composite(rim_l, rim_r, side)
+    near_portal = opening.filter(ImageFilter.GaussianBlur(28)).point(lambda v: min(255, v * 3))
+    rim = ImageChops.multiply(rim.point(lambda v: max(0, v - 132) * 2), depth)
+    rim = ImageChops.multiply(rim, near_portal)
+    red = ImageChops.subtract(rim, _biomech_bayer_field(size)).point(lambda v: 255 if v else 0)
+    wall.paste(SPECTRA6["red"], (0, 0), red)
+
+    solid = ImageChops.lighter(ImageOps.invert(opening), field.point(lambda v: 255 if v > 150 else 0))
+    image.paste(wall, (0, 0), solid)
+
+
+def _biomech_background() -> Image.Image:
+    """The quote-independent frame: dusk + wall, painted and dithered once.
+
+    Keyed on the painter functions themselves, looked up at call time, and
+    holding one entry. A plain "built yet?" flag would hand a test that
+    neuters ``_biomech_paint_wall`` the frame painted before the patch — the
+    structural decoration fences would then measure a cache, not a painter,
+    and pass against a painter that paints nothing.
+    """
+    key = (_biomech_paint_sky, _biomech_paint_landscape, _biomech_paint_wall)
+    cached = _BIOMECH_BACKGROUND.get("frame")
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    size = (800, 480)
+    scene = Image.new("RGB", size, SPECTRA6["black"])
+    _biomech_paint_sky(scene)
+    _biomech_paint_landscape(scene)
+    image = dither_image_to_palette(scene, _BIOMECH_SCENE_PALETTE)
+    _biomech_paint_wall(image, _biomech_opening_mask(size))
+    _BIOMECH_BACKGROUND["frame"] = (key, image)
+    return image
+
+
+def _biomech_halo_paste(image: Image.Image, mask: Image.Image, fill, halo: int = 5) -> None:
+    """Paste ``fill`` through ``mask`` over a black halo grown from it."""
+    hard = mask.point(lambda v: 255 if v > 110 else 0)
+    image.paste(SPECTRA6["black"], (0, 0), hard.filter(ImageFilter.MaxFilter(halo)))
+    if fill is not None:
+        image.paste(fill, (0, 0), hard)
+
+
+def _biomech_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """Bone-white prose over a black halo; the matched phrase an ember."""
+    prose, hot, _ = wrap_quote_into_masks(
+        draw, image.size, quote_row, _BIOMECH_QUOTE_RECT, theme="biomech",
+        font_max=42, font_min=14, line_height_mult=1.3,
+    )
+    _biomech_halo_paste(image, ImageChops.lighter(prose, hot), None)
+    image.paste(SPECTRA6["white"], (0, 0), prose.point(lambda v: 255 if v > 110 else 0))
+    paint_neon_mask(image, hot, SPECTRA6["yellow"], SPECTRA6["red"],
+                    radius=3, gamma=1.5, cap=0.62,
+                    ground=frozenset({SPECTRA6["black"]}), tile=BAYER_8x8)
+    prose.close()
+    hot.close()
+
+
+def _biomech_paint_byline(image: Image.Image, quote_row: dict) -> None:
+    """Author and title, small and bone-white, over the dark plain."""
+    left, right, *_ = _BIOMECH_ARCH
+    mask = Image.new("L", image.size, 0)
+    font = load_font([SPECTRAL_MEDIUM_ITALIC, *META_FONT_CANDIDATES], size=15)
+    draw_truncated_centred_byline(ImageDraw.Draw(mask), quote_row, centre=(left + right) // 2,
+                                  baseline=_BIOMECH_BYLINE_BASELINE, max_width=right - left - 60,
+                                  font=font, fill=255)
+    _biomech_halo_paste(image, mask, SPECTRA6["white"])
+    mask.close()
+
+
+def _biomech_paint_plate(draw: ImageDraw.ImageDraw, hour: int) -> None:
+    """The sill cartouche: the work's title, the hour its Roman number."""
+    x0, y0, x1, y1 = _BIOMECH_PLATE
+    # The numeral is ember yellow, not red: red on black is the lowest-contrast
+    # pair the six inks offer, and on the calibrated panel a red numeral all
+    # but vanished into its own plate.
+    white, yellow, black = SPECTRA6["white"], SPECTRA6["yellow"], SPECTRA6["black"]
+    draw.rounded_rectangle((x0, y0, x1, y1), radius=6, fill=black, outline=white, width=1)
+    font = load_font([(GRENZE_GOTISCH_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=15)
+    title, numeral = "Biomechanoid · ", _TAROT_ROMAN_NUMERALS[hour]
+    total = draw.textlength(title + numeral, font=font)
+    x = (x0 + x1 - total) / 2
+    base = y1 - 6
+    draw.text((x, base), title, font=font, fill=white, anchor="ls")
+    draw.text((x + draw.textlength(title, font=font), base), numeral, font=font, fill=yellow, anchor="ls")
+
+
+def render_biomech_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """Giger's wall round a Beksiński dusk (see the module section comment above)."""
+    hour = _biomech_hour(time_str)
+    image = _biomech_background().copy()
+    draw = ImageDraw.Draw(image)
+    _biomech_paint_quote(image, draw, quote_row)
+    _biomech_paint_byline(image, quote_row)
+    _biomech_paint_plate(draw, hour)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+
+# ---------------------------------------------------------------------------
 # codex — a page of the Codex Seraphinianus
 # ---------------------------------------------------------------------------
 # Luigi Serafini's imaginary encyclopedia (1981): a book of a world that does
@@ -27727,6 +29521,12 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_photo_frame(time_str, quote_row, width, height)
     if theme == "control":
         return render_control_frame(time_str, quote_row, width, height)
+    if theme == "observation":
+        return render_observation_frame(time_str, quote_row, width, height)
+    if theme == "trisolaris":
+        return render_trisolaris_frame(time_str, quote_row, width, height)
+    if theme == "biomech":
+        return render_biomech_frame(time_str, quote_row, width, height)
     if theme == "codex":
         return render_codex_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
