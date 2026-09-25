@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control", "trisolaris")
+                             "control", "observation", "trisolaris")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4116,6 +4116,176 @@ class TestControlFrame:
         )
         assert text.endswith("…") and len(text) > 20
         assert rq.tracked_width(draw, text, font, tracking=1) <= 300
+
+
+class TestObservationFrame:
+    """``observation`` — S.A.M.'s camera feed, after No Code's *Observation*.
+
+    Black space, a banded Saturn with its polar hexagon and rings, a glowing
+    hexagonal anomaly under a tracking reticle, and the quote as an audio-log
+    transcript in a HUD panel. The camera number is the hour.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestObservationFrame.ROW)),
+                         *size, mode="production", theme="observation")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "observation" in rq.THEMES
+        assert "observation" in rq.THEME_ORDER
+        assert "observation" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["observation"] == 0.7
+        assert rq.theme_font_candidates("observation", "quote_regular")[0] == rq.PLEXMONO_MEDIUM
+        assert rq.theme_font_candidates("observation", "quote_bold")[0] == rq.PLEXMONO_BOLD
+        for path in (rq.PLEXMONO_REGULAR, rq.PLEXMONO_MEDIUM, rq.PLEXMONO_SEMIBOLD, rq.PLEXMONO_BOLD):
+            assert pathlib.Path(path).exists(), path
+        assert (pathlib.Path(rq.PLEXMONO_BOLD).parent / "OFL.txt").exists()
+
+    @pytest.mark.parametrize("time_str,camera", [
+        ("00:30", 12), ("12:00", 12), ("13:05", 1), ("01:59", 1), ("09:15", 9), ("bogus", 12),
+    ])
+    def test_camera_is_the_twelve_hour_clock_hour(self, time_str, camera):
+        assert rq._observation_camera(time_str) == camera
+
+    def test_two_cameras_per_module(self):
+        lit = [rq._observation_module_index(c) for c in range(1, 13)]
+        assert lit == [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+
+    def test_minute_never_reaches_the_frame(self):
+        """Hour only: the camera designation carries the hour and the matched
+        phrase carries the minute, so every minute of an hour renders
+        byte-identically for one row."""
+        first = pixel_bytes(self._render(time_str="14:00"))
+        for time_str in ("14:07", "14:30", "14:59", "02:45"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_hour_changes_the_camera(self):
+        assert pixel_bytes(self._render(time_str="14:30")) != pixel_bytes(self._render(time_str="15:30"))
+
+    def test_on_palette_deterministic_and_all_six_inks(self):
+        image = self._render()
+        inks = distinct_inks(image)
+        assert inks == set(rq.SPECTRA6.values()), "the feed should surface every ink the panel has"
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_log_number_follows_the_row_not_the_clock(self):
+        other = {**self.ROW, "source_id": "159"}
+        a = self._render()
+        b = self._render(other)
+        x0, y0, x1, _ = rq._OBSERVATION_PANEL
+        header = (x0, y0, x1, y0 + rq._OBSERVATION_HEADER_H)
+        assert pixel_bytes(a.crop(header)) != pixel_bytes(b.crop(header))
+
+    def test_band_mix_is_one_read_partitioned_three_ways(self):
+        """Over a whole tile, shade takes exactly its share of cells and the
+        band's minor ink takes its share of the remainder — no second read."""
+        black, major, minor = rq.SPECTRA6["black"], rq.SPECTRA6["yellow"], rq.SPECTRA6["red"]
+        counts = {black: 0, major: 0, minor: 0}
+        for rank in range(64):
+            counts[rq._observation_mix(rank, 0.25, major, minor, 0.375)] += 1
+        assert counts[black] == 16
+        assert counts[minor] == 18
+        assert counts[major] == 30
+
+    def test_far_rings_pass_behind_the_planet(self):
+        """Painting the rings over the planet may change the disc only on the
+        near half of the ring plane (v > 0); the far half is occluded."""
+        base = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._observation_paint_saturn(base)
+        ringed = base.copy()
+        rq._observation_paint_rings(ringed)
+        cx, cy, r = rq._OBSERVATION_SATURN
+        a, b = base.load(), ringed.load()
+        near_changed = 0
+        for y in range(cy - r, cy + r + 1):
+            for x in range(cx - r, cx + r + 1):
+                if (x - cx) ** 2 + (y - cy) ** 2 > r * r or a[x, y] == b[x, y]:
+                    continue
+                _, v = rq._observation_ring_frame(x - cx, y - cy)
+                assert v >= 0, f"far-side ring painted over the planet at {(x, y)}"
+                near_changed += 1
+        assert near_changed > 500, "the near rings should cross in front of the disc"
+
+    def test_saturn_is_banded_and_shaded(self):
+        """The disc carries the warm band inks, the blue polar cap, and a
+        terminator: its lower-right quadrant is darker than its upper-left."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._observation_paint_saturn(image)
+        cx, cy, r = rq._OBSERVATION_SATURN
+        disc = distinct_inks(image.crop((cx - r, cy - r, cx + r + 1, cy + r + 1)))
+        assert {rq.SPECTRA6[n] for n in ("yellow", "red", "blue", "white")} <= disc
+        black = rq.SPECTRA6["black"]
+
+        def black_share(box):
+            counts = ink_counts(image.crop(box))
+            return counts.get(black, 0) / sum(counts.values())
+
+        h = r // 2
+        lit = black_share((cx - h - 10, cy - h - 10, cx - h + 10, cy - h + 10))
+        dark = black_share((cx + h - 10, cy + h - 10, cx + h + 10, cy + h + 10))
+        assert dark > lit + 0.2
+
+    def test_tears_never_cut_the_transcript(self, monkeypatch):
+        """Tracking tears shear the feed only — the panel is painted after
+        them, so neutering the tears leaves the panel byte-identical."""
+        torn = self._render()
+        monkeypatch.setattr(rq, "_observation_paint_tears", lambda image: None)
+        clean = self._render()
+        assert pixel_bytes(torn.crop(rq._OBSERVATION_PANEL)) == pixel_bytes(clean.crop(rq._OBSERVATION_PANEL))
+        assert pixel_bytes(torn) != pixel_bytes(clean)
+
+    def test_phrase_is_yellow_with_a_tangerine_halo(self, monkeypatch):
+        """The matched phrase is a yellow core in a red+yellow halo that only
+        ever lands on black — the white prose is never overwritten."""
+        red, yellow, white = rq.SPECTRA6["red"], rq.SPECTRA6["yellow"], rq.SPECTRA6["white"]
+        qbox = rq._OBSERVATION_QUOTE_RECT
+        with_halo = self._render().crop(qbox)
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        without = self._render().crop(qbox)
+        assert ink_counts(without).get(red, 0) == 0
+        assert ink_counts(with_halo).get(red, 0) > 0
+        assert ink_counts(with_halo).get(yellow, 0) > ink_counts(without).get(yellow, 0)
+        white_mask = without.convert("L").point(lambda v: 255 if v == 255 else 0)
+        under = Image.composite(with_halo, Image.new("RGB", with_halo.size, white), white_mask)
+        assert distinct_inks(under) == {white}, "halo overwrote prose"
+
+    def test_lit_module_matches_the_camera(self):
+        """The station schematic lights exactly one module — the camera's."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._observation_paint_map(ImageDraw.Draw(image), 7)
+        x0, y0, x1, y1 = rq._OBSERVATION_MAP_RECT
+        n = len(rq._OBSERVATION_MODULES)
+        step = (x1 - x0 - 12) / (n - 1)
+        yellow = rq.SPECTRA6["yellow"]
+        lit = [i for i in range(n)
+               if yellow in distinct_inks(image.crop((round(x0 + 6 + i * step) - 8, y0 - 2,
+                                                      round(x0 + 6 + i * step) + 8, y1 + 2)))]
+        assert lit == [rq._observation_module_index(7)]
+
+    def test_unattributed_log_and_missing_title(self):
+        row = {**self.ROW, "author": "", "title": ""}
+        assert rq._observation_log_header(make_row(**row)) == "AUDIO LOG — UNATTRIBUTED"
+        assert rq._observation_log_header(make_row(**self.ROW)) == "AUDIO LOG — JANE AUSTEN"
+        image = self._render(row)
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
 
 
 class TestTrisolarisFrame:

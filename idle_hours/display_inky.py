@@ -243,6 +243,11 @@ THEME_SATURATION: dict[str, float] = {
     # chromatic-on-light profile as ``default`` / ``swiss``; the gentler tier
     # keeps the coral halo a stain rather than a fire-engine smear.
     "control": 0.5,
+    # No Code's Observation — S.A.M.'s camera feed: black space, a banded
+    # Saturn in two-ink mixes, a blue-blooming anomaly, a tangerine-haloed
+    # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
+    # stippled bands and blooms are exactly what the gentler tier flattens.
+    "observation": 0.7,
     # Liu Cixin's *The Three-Body Problem* — a black sky whose suns, their
     # tangerine wakes and the sunlit matched phrase are all falling-density
     # blooms or sparse stipple. Dark-ground tier, the ``nocturne`` /
