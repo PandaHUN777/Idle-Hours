@@ -20,7 +20,7 @@ def iter_jsonl(path: Path) -> Iterator[dict]:
     (with a ``path:lineno`` prefix) and skipped so a single bad row cannot
     abort a long-running pipeline stage.
     """
-    with path.open(encoding="utf-8") as handle:
+    with path.open(encoding="utf-8-sig") as handle:
         for line_num, line in enumerate(handle, start=1):
             if not line.strip():
                 continue
