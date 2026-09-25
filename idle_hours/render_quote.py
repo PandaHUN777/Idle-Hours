@@ -15203,8 +15203,10 @@ GRIMDARK_PLATE = BASE_DIR / "assets" / "grimdark_gunmetal.png"
 # control: board-formed concrete for the plinth, dithered to white+black at
 # render time (scripts/generate_control_plate.py). 800x88, the plinth band.
 CONTROL_PLATE = BASE_DIR / "assets" / "control_concrete.png"
-_CONCRETE_PALETTE = [SPECTRA6["white"], SPECTRA6["black"]]
 _GUNMETAL_PALETTE = [SPECTRA6["white"], SPECTRA6["black"]]
+# The concrete plate dithers to the same K+W pair as the gunmetal: one constant,
+# so the two achromatic plates cannot drift apart.
+_CONCRETE_PALETTE = _GUNMETAL_PALETTE
 
 # The letter aged-paper plate dithers to white/yellow/red/green: cream paper as
 # a W+Y stipple, sepia foxing as the documented R+G brown recipe. Black is
@@ -23915,6 +23917,9 @@ _CONTROL_HISS_RADIUS = 6
 _CONTROL_HISS_CAP = 0.62
 _CONTROL_HISS_GAMMA = 1.6
 _CONTROL_TRACKING = 2
+_CONTROL_SIGN_GAP = 24          # clear space between the name run and the credit column
+_CONTROL_CREDIT_SIZE = 12
+_CONTROL_CREDIT_FLOOR = 10      # below this a credit is ellipsised rather than shrunk further
 # Hiss resonance: thin horizontal bands of the phrase echoed sideways as a
 # half-density red stipple — (band top as a fraction of the phrase height,
 # band height in px, horizontal shift in px). Echoes only, never moves:
@@ -24060,26 +24065,7 @@ def _control_paint_seal(draw: ImageDraw.ImageDraw) -> None:
     draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=white, width=2)
     tri = [(cx - 8, cy - 6), (cx + 8, cy - 6), (cx, cy + 8)]
     draw.polygon(tri, outline=white, fill=None)
-    draw.line(tri + [tri[0]], fill=white, width=1)
     draw.ellipse((cx - 2, cy - 2, cx + 2, cy + 2), fill=white)
-
-
-def _control_draw_tracked(draw: ImageDraw.ImageDraw, xy, text: str, font, fill,
-                          tracking: int = _CONTROL_TRACKING, anchor_right: bool = False) -> int:
-    """Draw ``text`` with extra letterspacing; returns the run's width.
-
-    PIL has no tracking, so the caps are placed glyph by glyph — the same
-    hand-set approach the ``bakelite`` legend and ``intaglio`` masthead use.
-    """
-    x, y = xy
-    widths = [draw.textlength(ch, font=font) for ch in text]
-    total = int(sum(widths) + tracking * max(0, len(text) - 1))
-    if anchor_right:
-        x -= total
-    for ch, w in zip(text, widths):
-        draw.text((x, y), ch, font=font, fill=fill)
-        x += w + tracking
-    return total
 
 
 def _control_board_lines(quote_row: dict) -> list[str]:
@@ -24104,18 +24090,22 @@ def _control_paint_sign(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row
     name_font = load_font([(OSWALD_VARIABLE, "Bold"), (ANTONIO_VARIABLE, "Bold"), *META_FONT_BOLD_CANDIDATES], size=17)
     sub_font = load_font([(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=10)
     text_x = _CONTROL_SEAL_CENTRE[0] + _CONTROL_SEAL_RADIUS + 12
-    _control_draw_tracked(draw, (text_x, y0 + 5), "FEDERAL BUREAU OF CONTROL", name_font, white)
-    _control_draw_tracked(draw, (text_x, y0 + 29), "THE OLDEST HOUSE", sub_font, white, tracking=3)
+    name_w = draw_tracked(draw, (text_x, y0 + 5), "FEDERAL BUREAU OF CONTROL", name_font, white,
+                          tracking=_CONTROL_TRACKING)
+    draw_tracked(draw, (text_x, y0 + 29), "THE OLDEST HOUSE", sub_font, white, tracking=3)
 
-    credit_font = load_font([(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=12)
+    # The credit column's budget is measured off the name run actually painted,
+    # not a constant sized for one face: the Antonio -> Oswald switch grew the
+    # name by 36 px and a fixed budget let long titles overprint it.
+    credit_candidates = [(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES]
     right = x1 - 14
-    limit = right - (text_x + 250)
+    limit = right - (text_x + name_w + _CONTROL_SIGN_GAP)
     lines = _control_board_lines(quote_row)
     y = y0 + 6 if len(lines) > 1 else y0 + 14
     for text in lines:
-        while len(text) > 1 and draw.textlength(text, font=credit_font) + (len(text) - 1) > limit:
-            text = text[:-1].rstrip()
-        _control_draw_tracked(draw, (right, y), text, credit_font, white, tracking=1, anchor_right=True)
+        font, text = fit_text_to_width(draw, text, credit_candidates, _CONTROL_CREDIT_SIZE, limit,
+                                       floor=_CONTROL_CREDIT_FLOOR, tracking=1)
+        draw_tracked(draw, (right, y), text, font, white, tracking=1, anchor_right=True)
         y += 17
 
 
@@ -24901,40 +24891,19 @@ def _bakelite_paint_tube(image: Image.Image, screen: Image.Image) -> None:
 
 
 def _bakelite_tracked_width(draw, text: str, font) -> float:
-    if not text:
-        return 0.0
-    return sum(draw.textlength(ch, font=font) for ch in text) + _BAKELITE_TRACKING * (len(text) - 1)
+    return tracked_width(draw, text, font, tracking=_BAKELITE_TRACKING)
 
 
 def _bakelite_draw_tracked(draw, x: float, y: int, text: str, font, fill) -> None:
-    """Letterspaced caps — the wide silkscreened legend of an instrument panel.
-
-    PIL has no tracking, so the string is stepped a glyph at a time. Works
-    against an ``"L"`` bloom mask as readily as against the image.
-    """
-    for ch in text:
-        draw.text((x, y), ch, font=font, fill=fill)
-        x += draw.textlength(ch, font=font) + _BAKELITE_TRACKING
+    """The silkscreened legend at this theme's tracking — see ``draw_tracked``."""
+    draw_tracked(draw, (x, y), text, font, fill, tracking=_BAKELITE_TRACKING)
 
 
 def _bakelite_fit_text(draw, text: str, size: int, max_width: int, floor: int = 17):
-    """Shrink a chrome readout until it fits its cell, then ellipsise.
-
-    The floor matters more than the shrink. Allowed to keep stepping down, a
-    long book title reaches a size at which it technically fits and is no longer
-    readable across a room — which for a clock is the same as not rendering it.
-    Below ``floor`` the value is truncated instead, so the cell always carries
-    something a reader can actually take in.
-    """
-    while size > floor:
-        font = load_font(theme_font_candidates("bakelite", "quote_regular"), size=size)
-        if draw.textlength(text, font=font) <= max_width:
-            return font, text
-        size -= 2
-    font = load_font(theme_font_candidates("bakelite", "quote_regular"), size=floor)
-    while len(text) > 1 and draw.textlength(text, font=font) > max_width:
-        text = text[:-2].rstrip(" ,.;:") + "…"
-    return font, text
+    """A chrome readout shrunk to its cell, then ellipsised at the floor — see
+    ``fit_text_to_width``; the cells are drawn as single kerned runs."""
+    return fit_text_to_width(draw, text, theme_font_candidates("bakelite", "quote_regular"),
+                             size, max_width, floor=floor)
 
 
 def _bakelite_paint_phosphor(image: Image.Image, mask: Image.Image, core=None,
@@ -26128,6 +26097,64 @@ def draw_centred_styled_lines(draw: ImageDraw.ImageDraw, wrapped, *, x0: int, x1
             x += draw.textbbox((0, 0), chunk, font=font)[2]
         y += line_height
     return y
+
+
+def tracked_width(draw, text: str, font, *, tracking: float) -> float:
+    """Width of ``text`` as ``draw_tracked`` will paint it: per-glyph advances
+    plus ``tracking`` between glyphs. A per-glyph sum, not ``textlength`` of the
+    whole string, because the glyph-by-glyph draw drops kerning."""
+    if not text:
+        return 0.0
+    return sum(draw.textlength(ch, font=font) for ch in text) + tracking * (len(text) - 1)
+
+
+def draw_tracked(draw, xy, text: str, font, fill, *, tracking: float, anchor_right: bool = False) -> float:
+    """Letterspaced caps — an instrument panel's silkscreened legend, a
+    wayfinding sign, a banknote masthead. Returns the run's width.
+
+    PIL has no tracking, so the string is stepped a glyph at a time. Works
+    against an ``"L"`` bloom mask as readily as against the image. With
+    ``anchor_right`` the run ends at ``xy[0]`` instead of starting there.
+    Shared by ``bakelite`` and ``control``; the two used to carry their own
+    copies of this loop 800 lines apart.
+    """
+    x, y = xy
+    width = tracked_width(draw, text, font, tracking=tracking)
+    if anchor_right:
+        x -= width
+    for ch in text:
+        draw.text((x, y), ch, font=font, fill=fill)
+        x += draw.textlength(ch, font=font) + tracking
+    return width
+
+
+def fit_text_to_width(draw, text: str, candidates, size: int, max_width: float, *,
+                      floor: int, tracking: float = 0):
+    """Shrink a chrome string until it fits, then ellipsise at the floor.
+
+    Returns ``(font, text)``. The floor matters more than the shrink: allowed to
+    keep stepping down, a long book title reaches a size at which it technically
+    fits and is no longer readable across a room — which for a clock is the
+    same as not rendering it. Below ``floor`` the value is truncated with an
+    ellipsis instead, so the cell always carries something a reader can take
+    in, and never a bare mid-word fragment. Measured the way it will be
+    painted: as one kerned run when ``tracking`` is 0, glyph by glyph (via
+    ``tracked_width``) otherwise.
+    """
+    def measure(candidate: str, font) -> float:
+        if tracking:
+            return tracked_width(draw, candidate, font, tracking=tracking)
+        return draw.textlength(candidate, font=font)
+
+    while size > floor:
+        font = load_font(candidates, size=size)
+        if measure(text, font) <= max_width:
+            return font, text
+        size -= 2
+    font = load_font(candidates, size=floor)
+    while len(text) > 1 and measure(text, font) > max_width:
+        text = text[:-2].rstrip(" ,.;:") + "…"
+    return font, text
 
 
 def draw_truncated_centred_byline(draw: ImageDraw.ImageDraw, quote_row: dict, *,

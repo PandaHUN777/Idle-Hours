@@ -24,7 +24,7 @@ import pathlib
 import threading
 
 import pytest
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from idle_hours import pick_quote as pq
 from idle_hours import render_quote as rq
@@ -3934,12 +3934,8 @@ class TestControlFrame:
         x0, y0, x1, y1 = rq._CONTROL_QUOTE_RECT
         reach = 3 * rq._CONTROL_HISS_RADIUS + max(abs(s) for _, _, s in rq._CONTROL_RESONANCE)
         x0, y0, x1, y1 = x0 - reach, y0 - reach, x1 + reach, y1 + reach
-        px = image.load()
-        stray = [
-            (x, y) for y in range(480) for x in range(800)
-            if px[x, y] == red and not (x0 <= x < x1 and y0 <= y < y1)
-        ]
-        assert not stray, f"red outside the quote rect at {stray[:5]}"
+        for band in ((0, 0, 800, y0), (0, y1, 800, 480), (0, y0, x0, y1), (x1, y0, 800, y1)):
+            assert red not in distinct_inks(image.crop(band)), f"red outside the quote rect in {band}"
         assert distinct_inks(image) <= {red, rq.SPECTRA6["black"], rq.SPECTRA6["white"]}
         plain = self._render({**self.ROW, "matched_text": ""})
         assert ink_counts(plain).get(red, 0) == 0
@@ -3977,9 +3973,12 @@ class TestControlFrame:
 
         monkeypatch.setattr(rq, "paint_neon_mask", core_only)
         without = self._render()
-        a, b = with_halo.load(), without.load()
-        lost = [(x, y) for y in range(480) for x in range(800) if b[x, y] == black and a[x, y] != black]
-        assert not lost, f"halo overwrote prose at {lost[:5]}"
+        # Every black pixel of the halo-less render must still be black with
+        # the halo: mask the halo-less black, and require the halo render to
+        # be black everywhere under that mask (a C-speed compare, not a walk).
+        black_mask = without.convert("L").point(lambda v: 255 if v == 0 else 0)
+        under = Image.composite(with_halo, Image.new("RGB", (800, 480), black), black_mask)
+        assert distinct_inks(under) == {black}, "halo overwrote prose"
 
     def test_blocks_are_shaded_solids(self):
         """A block is three faces under one light: its lit face carries a
@@ -4045,16 +4044,15 @@ class TestControlFrame:
         with_bands = self._render()
         monkeypatch.setattr(rq, "_CONTROL_RESONANCE", ())
         without = self._render()
-        a, b = with_bands.load(), without.load()
-        added = lost = 0
-        for y in range(480):
-            for x in range(800):
-                if a[x, y] != b[x, y]:
-                    assert b[x, y] == rq.SPECTRA6["white"] and a[x, y] == red, (x, y, a[x, y], b[x, y])
-                    added += 1
-                if b[x, y] != rq.SPECTRA6["white"] and a[x, y] != b[x, y]:
-                    lost += 1
-        assert added > 0 and lost == 0
+        changed = ImageChops.difference(with_bands, without).convert("L").point(lambda v: 255 if v else 0)
+        assert changed.getbbox() is not None, "the resonance bands painted nothing"
+        # Under the changed mask: the band-less render was all white, and the
+        # banded render is all red — an echo laid onto the void and nothing else.
+        white = rq.SPECTRA6["white"]
+        before = Image.composite(without, Image.new("RGB", (800, 480), white), changed)
+        after = Image.composite(with_bands, Image.new("RGB", (800, 480), red), changed)
+        assert distinct_inks(before) == {white}, "resonance displaced a non-white pixel"
+        assert distinct_inks(after) == {red}
 
     def test_plinth_prefers_the_concrete_plate_and_falls_back(self, tmp_path, monkeypatch):
         """The plinth is the committed board-formed plate dithered to K+W;
@@ -4081,3 +4079,40 @@ class TestControlFrame:
         fallback = band_share(plinth_only())
         assert 0.25 < plated < 0.6
         assert 0.25 < fallback < 0.6
+
+    def test_long_credits_never_overprint_the_bureau_name(self):
+        """The credit column's budget is measured off the painted name run, so
+        a shipped-corpus title wide enough to reach it is shrunk and ellipsised
+        rather than laid over FEDERAL BUREAU OF CONTROL. Fenced by comparing
+        the name column between a short title and the longest one in the
+        corpus: it must not change by a pixel."""
+        long_title = "The Importance of Being Earnest: A Trivial Comedy for Serious People"
+
+        def sign(title):
+            image = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+            draw = ImageDraw.Draw(image)
+            rq._control_paint_sign(image, draw, make_row(**{**self.ROW, "title": title}))
+            return image
+
+        x0, y0, x1, y1 = rq._CONTROL_SIGN_RECT
+        short, long = sign("Emma"), sign(long_title)
+        # The name column is bounded by the run actually painted, measured the
+        # way the sign measures it, plus half the gap the sign keeps clear.
+        name_font = rq.load_font([(rq.OSWALD_VARIABLE, "Bold")], size=17)
+        text_x = rq._CONTROL_SEAL_CENTRE[0] + rq._CONTROL_SEAL_RADIUS + 12
+        name_w = rq.tracked_width(ImageDraw.Draw(short), "FEDERAL BUREAU OF CONTROL", name_font,
+                                  tracking=rq._CONTROL_TRACKING)
+        column = (x0, y0, int(text_x + name_w + rq._CONTROL_SIGN_GAP // 2), y1)
+        assert ImageChops.difference(short.crop(column), long.crop(column)).getbbox() is None, (
+            "a long title overprinted the Bureau name column"
+        )
+        # And the long title still carries a legible, ellipsised credit rather
+        # than a bare mid-word fragment.
+        draw = ImageDraw.Draw(long)
+        font, text = rq.fit_text_to_width(
+            draw, f"WORK/VESSEL: {long_title.upper()}",
+            [(rq.OSWALD_VARIABLE, "Medium")], rq._CONTROL_CREDIT_SIZE, 300,
+            floor=rq._CONTROL_CREDIT_FLOOR, tracking=1,
+        )
+        assert text.endswith("…") and len(text) > 20
+        assert rq.tracked_width(draw, text, font, tracking=1) <= 300
