@@ -4162,8 +4162,94 @@ class TestCodexFrame:
         assert pixel_bytes(first) == pixel_bytes(self._render())
 
     def test_plate_surfaces_every_native_ink(self):
-        """The vibrancy is the plate's job: all six inks must be on the page."""
-        assert distinct_inks(self._render()) == set(rq.SPECTRA6_PALETTE)
+        """The vibrancy is the plate's job, so the check is scoped to the plate.
+
+        Measured across the whole page this passed with the plate deleted
+        outright — the rainbow, the cream wash and the text already put all six
+        inks on the page. Inside the plate's crop the page alone contributes
+        only white and yellow.
+        """
+        plate = self._render().crop(rq._CODEX_PLATE)
+        assert distinct_inks(plate) == set(rq.SPECTRA6_PALETTE)
+
+    def test_script_stays_inside_its_reach(self):
+        """Every letter and diacritic lies within the documented reach of its
+        baseline; the page's line pitch is computed from these bounds."""
+        import random as _random
+        above, below = rq._CODEX_REACH_ABOVE, rq._CODEX_REACH_BELOW
+        img = Image.new("L", (420, 120), 0)
+        draw = ImageDraw.Draw(img)
+        base = 60
+        for seed in range(400):
+            draw.rectangle((0, 0, 420, 120), fill=0)
+            xh = 5 if seed % 2 else 8
+            width = 1 if xh == 5 else 2
+            rq._codex_script(draw, 8, base, 400, xh=xh, rng=_random.Random(seed),
+                             fill=255, width=width)
+            bbox = img.getbbox()
+            slack = width
+            assert bbox[1] >= base - above * xh - slack, (seed, bbox)
+            assert bbox[3] <= base + below * xh + slack + 1, (seed, bbox)
+
+    def test_stacked_script_lines_cannot_collide(self):
+        """An ascender on one line must not be able to reach the descender of
+        the line above: pitch >= below*xh_upper + above*xh_lower."""
+        above, below = rq._CODEX_REACH_ABOVE, rq._CODEX_REACH_BELOW
+        xh = rq._CODEX_BODY_XH
+        heading_base, heading_xh = rq._CODEX_HEADING
+        stacks = [
+            [(heading_base, heading_xh)] + [(b, xh) for b in rq._CODEX_UPPER_LINES],
+            [(b, xh) for b in rq._CODEX_LOWER_LINES],
+        ]
+        for stack in stacks:
+            for (upper, uxh), (lower, lxh) in zip(stack, stack[1:]):
+                assert lower - upper >= below * uxh + above * lxh, (upper, lower)
+        # And the text blocks clear the quote rect above and below.
+        top, bottom = rq._CODEX_QUOTE_RECT[1], rq._CODEX_QUOTE_RECT[3]
+        assert rq._CODEX_UPPER_LINES[-1] + below * xh < top
+        assert rq._CODEX_LOWER_LINES[0] - above * xh > bottom
+
+    def test_plate_caption_clears_the_roots(self):
+        """The caption was once written straight through the root spirals."""
+        import random as _random
+        top_of_caption = rq._CODEX_CAPTION_BASE - rq._CODEX_REACH_ABOVE * rq._CODEX_BODY_XH - 1
+        for seed in range(50):
+            img = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+            bbox = rq._codex_paint_roots(img, ImageDraw.Draw(img), _random.Random(seed))
+            assert bbox[3] < top_of_caption, (seed, bbox, top_of_caption)
+        # Caption's own reach stays on the canvas.
+        assert rq._CODEX_CAPTION_BASE + rq._CODEX_REACH_BELOW * rq._CODEX_BODY_XH < 480
+
+    def test_roots_carry_the_sepia_recipe(self):
+        """Filled through a mask with the R+G recipe, not a red post-pass: the
+        roots are a checkerboard of the two inks and nothing else."""
+        import random as _random
+        img = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+        bbox = rq._codex_paint_roots(img, ImageDraw.Draw(img), _random.Random(7))
+        below_ground = img.crop((0, rq._CODEX_STEM_BASE[1] + 4, 800, bbox[3]))
+        counts = ink_counts(below_ground)
+        red, green = counts.get(rq.SPECTRA6["red"], 0), counts.get(rq.SPECTRA6["green"], 0)
+        assert red and green and 0.8 < red / green < 1.25, counts
+        assert set(counts) <= {rq.SPECTRA6["red"], rq.SPECTRA6["green"], rq.SPECTRA6["white"]}
+
+    def test_fish_leaf_reports_its_nose(self):
+        """The dotted leaders point at the returned nose, so it must be on the
+        fish's own contour."""
+        img = Image.new("RGB", (400, 300), rq.SPECTRA6["white"])
+        nx, ny = rq._codex_paint_fish_leaf(img, ImageDraw.Draw(img), 120, 200, 1,
+                                           rq._CODEX_LEAF_FILLS[0], 30)
+        near = img.crop((int(nx) - 2, int(ny) - 2, int(nx) + 3, int(ny) + 3))
+        assert rq.SPECTRA6["black"] in distinct_inks(near)
+        assert nx > 120 and ny < 200          # up and out from the stem
+
+    @pytest.mark.parametrize("time_str", ["00:00", "00:21", "07:21", "19:47", "23:59"])
+    def test_folio_is_right_aligned_whatever_the_digits(self, time_str):
+        """The folio is laid out from the digits' real advances. Zero's ring is
+        narrower than the other glyphs, so assuming one fixed advance let the
+        page number's right margin drift with how many zeros the minute had."""
+        img = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+        end = rq._codex_paint_folio(ImageDraw.Draw(img), time_str)
+        assert end == pytest.approx(rq._CODEX_COLUMN[1])
 
     @pytest.mark.parametrize("time_str, digits", [
         ("00:00", [0]),

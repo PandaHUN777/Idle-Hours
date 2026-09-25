@@ -1206,19 +1206,14 @@ THEMES = {
         "ornament_light": SPECTRA6["yellow"],
         "source": SPECTRA6["white"],
     },
-    # Remedy's *Control* — the Astral Plane. A custom frame
-    # (``render_control_frame``): white void, floating isometric stone blocks
-    # in K+W stipple, the Board's inverted black pyramid, a concrete plinth
-    # carrying a black wayfinding sign. Black condensed prose; the matched
-    # phrase is Hiss red with a coral bloom stippled into the white around it.
-    # The literary-layout slots below serve only the goodnight / source-card
-    # fall-through paths.
     # Codex Seraphinianus — Luigi Serafini's imaginary encyclopedia (1981). A
     # custom frame (``render_codex_frame``): cream page, a chimerical plant
     # plate in full-palette colour, columns of procedurally generated asemic
     # script, the quote as the page's one deciphered passage, and the time as
-    # a base-21 page number in invented numerals. The literary-layout slots
-    # below serve only the goodnight / source-card fall-through paths.
+    # a base-21 page number in invented numerals. The quiet-hours sleep frame
+    # goes through ``render`` and so through the frame itself; these slots are
+    # read only by the palette-only paths — the button-C source card and the
+    # opt-in ``--message`` headline.
     "codex": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -1229,6 +1224,13 @@ THEMES = {
         "ornament_light": SPECTRA6["blue"],
         "source": SPECTRA6["blue"],
     },
+    # Remedy's *Control* — the Astral Plane. A custom frame
+    # (``render_control_frame``): white void, floating isometric stone blocks
+    # in K+W stipple, the Board's inverted black pyramid, a concrete plinth
+    # carrying a black wayfinding sign. Black condensed prose; the matched
+    # phrase is Hiss red with a coral bloom stippled into the white around it.
+    # The literary-layout slots below serve only the goodnight / source-card
+    # fall-through paths.
     "control": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -24294,6 +24296,20 @@ _CODEX_TANGERINE = ("2", SPECTRA6["red"], SPECTRA6["yellow"], 0.375)
 _CODEX_CREAM_DENSITY = 14                    # of 256: sparse Y+W paper wash
 _CODEX_NUMERAL_BASE = 21
 _CODEX_WORD_OVERHEAD = 1.6                   # x-heights: lead-in + exit tail + loop overshoot
+# How far a line of script can reach from its baseline, in x-heights. Every
+# letter shape and diacritic is drawn inside these bounds, and every stacked
+# pair of lines on the page is pitched at least ``BELOW·xh_upper +
+# ABOVE·xh_lower`` apart, so an ascender can never cross the descender of the
+# line above it (fenced by ``TestCodexFrame``).
+_CODEX_REACH_ABOVE = 2.1
+_CODEX_REACH_BELOW = 1.5
+_CODEX_HEADING = (58, 8)                     # (baseline, x-height) of the red rubric
+_CODEX_UPPER_LINES = (92, 112, 132)          # script paragraph above the quote
+_CODEX_LOWER_LINES = (418, 438)              # script paragraph below it
+_CODEX_CAPTION_BASE = 466                    # plate caption, clear below the roots
+_CODEX_BODY_XH = 5
+_CODEX_BYLINE_MIN = 12
+_CODEX_BYLINE_MAX = 18
 
 
 def _codex_paint_page(image: Image.Image) -> None:
@@ -24311,21 +24327,23 @@ def _codex_paint_page(image: Image.Image) -> None:
     mask.close()
 
 
-def _codex_letter_points(x0: float, base: float, xh: float, rng: random.Random) -> tuple[list, float]:
+def _codex_letter_points(x0: float, base: float, xh: float, rng: random.Random) -> tuple[list, float, bool]:
     """One asemic letter as a pen path that starts and ends on the baseline.
 
     ``x = x0 + w·t + r·sin 2πt`` swings forward on the way up and back on the
     way down, crossing its own stroke (a loop) whenever ``r > w/4``. The vertical
     excursion is up for an ordinary letter, much taller for an ascender and
     below the line for a descender, so a line of these carries the rhythm of a
-    cursive hand without being one.
+    cursive hand without being one. The third return value flags an ascender
+    or descender, over which no diacritic is placed.
     """
     kind = rng.random()
     w = xh * rng.uniform(0.7, 1.25)
+    above, below = _CODEX_REACH_ABOVE, _CODEX_REACH_BELOW
     if kind < 0.14:
-        h, sign, r = xh * rng.uniform(1.9, 2.5), -1, w * rng.uniform(0.32, 0.45)      # ascender loop
+        h, sign, r = xh * rng.uniform(above - 0.5, above), -1, w * rng.uniform(0.32, 0.45)   # ascender loop
     elif kind < 0.24:
-        h, sign, r = xh * rng.uniform(1.4, 1.9), 1, w * rng.uniform(0.3, 0.42)       # descender loop
+        h, sign, r = xh * rng.uniform(below - 0.4, below), 1, w * rng.uniform(0.3, 0.42)    # descender loop
     elif kind < 0.62:
         h, sign, r = xh * rng.uniform(0.8, 1.1), -1, w * rng.uniform(0.28, 0.4)      # small loop
     else:
@@ -24337,7 +24355,7 @@ def _codex_letter_points(x0: float, base: float, xh: float, rng: random.Random) 
         x = x0 + w * t + r * math.sin(2 * math.pi * t)
         y = base + sign * h * (1 - math.cos(2 * math.pi * t)) / 2
         pts.append((x, y))
-    return pts, x0 + w
+    return pts, x0 + w, kind < 0.24
 
 
 def _codex_script(draw: ImageDraw.ImageDraw, x: float, base: float, x_end: float, *,
@@ -24366,10 +24384,13 @@ def _codex_script(draw: ImageDraw.ImageDraw, x: float, base: float, x_end: float
         cx = x + lead
         marks = []
         for _ in range(n):
-            letter, cx = _codex_letter_points(cx, base, xh, rng)
+            letter, cx, tall = _codex_letter_points(cx, base, xh, rng)
             pts.extend(letter[1:])
-            if rng.random() < 0.12:
-                marks.append((letter[len(letter) // 2][0], base - xh * 2.1))
+            # Diacritics sit over short letters only, where there is headroom
+            # inside the reach bound; over an ascender they would collide
+            # with it or climb out of the line.
+            if not tall and rng.random() < 0.14:
+                marks.append((letter[len(letter) // 2][0], base - xh * (_CODEX_REACH_ABOVE - 0.45)))
         pts.append((cx + xh * 0.4, base - xh * 0.2))
         draw.line(pts, fill=fill, width=width, joint="curve")
         for mx, my in marks:
@@ -24386,6 +24407,11 @@ def _codex_script(draw: ImageDraw.ImageDraw, x: float, base: float, x_end: float
     return x
 
 
+def _codex_numeral_advance(digit: int, size: float) -> float:
+    """Horizontal advance of one numeral: zero's bare ring is narrower."""
+    return size * (0.85 if digit == 0 else 0.95)
+
+
 def _codex_numeral(draw: ImageDraw.ImageDraw, x: float, base: float, digit: int, *,
                    size: float, fill, width: int = 2) -> float:
     """One of twenty-one invented digits, drawn from the bits of its value.
@@ -24398,7 +24424,7 @@ def _codex_numeral(draw: ImageDraw.ImageDraw, x: float, base: float, digit: int,
     s = size
     if digit == 0:
         draw.ellipse((x, base - s * 0.7, x + s * 0.6, base - s * 0.1), outline=fill, width=width)
-        return s * 0.85
+        return _codex_numeral_advance(digit, s)
     stem = [(x + s * 0.15, base), (x + s * 0.35, base - s * 0.5), (x + s * 0.2, base - s)]
     draw.line(stem, fill=fill, width=width, joint="curve")
     if digit & 1:
@@ -24413,7 +24439,7 @@ def _codex_numeral(draw: ImageDraw.ImageDraw, x: float, base: float, digit: int,
         draw.ellipse((cx - d, cy - d, cx + d, cy + d), fill=fill)
     if digit & 16:
         draw.arc((x + s * 0.25, base - s * 0.35, x + s * 0.75, base + s * 0.05), 270, 90, fill=fill, width=width)
-    return s * 0.95
+    return _codex_numeral_advance(digit, s)
 
 
 def codex_page_digits(time_str: str) -> list[int]:
@@ -24456,36 +24482,60 @@ def _codex_stem_point(t: float) -> tuple[float, float]:
     return x, y
 
 
-def _codex_paint_roots(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
-    """Sepia roots below an olive ground line, each curling into a spiral."""
+def _codex_fill_mask(image: Image.Image, mask: Image.Image, spec: tuple) -> None:
+    """Paint every set pixel of a ``1`` mask with a recipe, in place.
+
+    Drawing a shape into a private mask and filling through it is how the
+    roots get their R+G sepia without a red sentinel: a post-pass that flips
+    "any red pixel in this box" would also recolour anything red a later
+    change happened to paint there.
+    """
+    bbox = mask.getbbox()
+    if bbox is None:
+        return
+    mpx, ipx = mask.load(), image.load()
+    for y in range(bbox[1], bbox[3]):
+        for x in range(bbox[0], bbox[2]):
+            if mpx[x, y]:
+                ipx[x, y] = _vitrail_pane_ink(x, y, spec)
+
+
+def _codex_paint_roots(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random):
+    """Sepia roots below a green-hatched ground line, each curling into a
+    spiral. Returns the roots' ink bbox, so the caption can be kept clear of it.
+    """
     bx, by = _CODEX_STEM_BASE
-    # Ground: short olive hatching, the mound the specimen stands on.
+    # Ground: short green hatching, the mound the specimen stands on.
     for i in range(-70, 72, 5):
         h = 3 + int(4 * math.cos(i / 70 * math.pi / 2))
         draw.line((bx + i, by + 2, bx + i + 3, by + 2 - h), fill=SPECTRA6["green"], width=1)
     draw.line((bx - 78, by + 3, bx + 80, by + 3), fill=SPECTRA6["black"], width=1)
+    mask = Image.new("1", image.size, 0)
+    mdraw = ImageDraw.Draw(mask)
     for k, dx in enumerate((-46, -20, 6, 30, 52)):
         pts = [(bx + dx * 0.2, by + 4)]
         x, y = bx + dx * 0.2, by + 4
-        for step in range(8):
+        for _ in range(8):
             x += dx * 0.12 + rng.uniform(-2, 2)
             y += 4.2
             pts.append((x, y))
-        # Spiral terminal: the root curls back on itself.
+        # Spiral terminal: the root keeps curling the way it was heading. The
+        # centre sits on the curl side, so the spiral starts at the root's tip
+        # (angle pi from a centre to its right, 0 from one to its left) and
+        # winds inward.
+        curl = 1 if dx > 0 else -1
         r = 5 + k % 3
-        start = math.atan2(0, 1)
+        ox, oy = x + curl * r, y
+        start = math.pi if curl > 0 else 0.0
         for j in range(1, 16):
-            a = start + (1 if dx > 0 else -1) * j * 0.55
+            a = start - curl * j * 0.55
             rr = r * (1 - j / 18)
-            pts.append((x + rr * math.cos(a) - r, y + rr * math.sin(a)))
-        draw.line(pts, fill=SPECTRA6["red"], width=3, joint="curve")
-    # Sepia post-pass: flip half the red root pixels to green, R+G 1:1.
-    px = image.load()
-    x0, y0 = max(0, bx - 90), by + 3
-    for yy in range(y0, min(image.height, by + 60)):
-        for xx in range(x0, min(image.width, bx + 90)):
-            if px[xx, yy] == SPECTRA6["red"] and (xx + yy) & 1:
-                px[xx, yy] = SPECTRA6["green"]
+            pts.append((ox + rr * math.cos(a), oy + rr * math.sin(a)))
+        mdraw.line(pts, fill=1, width=3, joint="curve")
+    bbox = mask.getbbox()
+    _codex_fill_mask(image, mask, _CODEX_SEPIA)
+    mask.close()
+    return bbox
 
 
 def _codex_paint_stem(image: Image.Image, draw: ImageDraw.ImageDraw, band_offset: int) -> None:
@@ -24513,12 +24563,15 @@ def _codex_paint_stem(image: Image.Image, draw: ImageDraw.ImageDraw, band_offset
 
 
 def _codex_paint_fish_leaf(image: Image.Image, draw: ImageDraw.ImageDraw, ax: float, ay: float,
-                           side: int, spec: tuple, size: float) -> None:
+                           side: int, spec: tuple, size: float) -> tuple[float, float]:
     """A leaf that is a fish: body, forked tail at the stem, scales, one eye.
 
     The tail is the petiole — the fish grows out of the stem nose-first — which
     is the Serafinian move: a familiar form (a leaf) that turns out, on a second
     look, to be a different familiar form entirely.
+
+    Returns the tip of the nose, so the plate's dotted leaders can point at it
+    without re-deriving the leaf geometry.
     """
     angle = -0.5 if side > 0 else math.pi + 0.5
     ca, sa = math.cos(angle), math.sin(angle)
@@ -24550,6 +24603,7 @@ def _codex_paint_fish_leaf(image: Image.Image, draw: ImageDraw.ImageDraw, ax: fl
     # A dorsal fin, red, on the upper flank.
     fin = [rot(cx - a * 0.3, -b * 0.9), rot(cx - a * 0.05, -b * 1.55), rot(cx + a * 0.2, -b * 0.95)]
     _codex_fill(image, fin, ("solid", SPECTRA6["red"]))
+    return rot(cx + a, 0)
 
 
 def _codex_paint_blossom(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
@@ -24602,7 +24656,7 @@ def _codex_paint_labels(draw: ImageDraw.ImageDraw, rng: random.Random, anchors: 
     x_label = _CODEX_PLATE[2] - 58
     for ax, ay in anchors:
         y = ay
-        x = ax + 6
+        x = ax + 5
         while x < x_label - 6:
             draw.point((x, y), fill=SPECTRA6["black"])
             x += 3
@@ -24621,16 +24675,15 @@ def _codex_paint_plate(image: Image.Image, rng: random.Random) -> None:
         x, y = _codex_stem_point(t)
         side = 1 if i % 2 == 0 else -1
         spec = _CODEX_LEAF_FILLS[(i + band_offset) % len(_CODEX_LEAF_FILLS)]
-        _codex_paint_fish_leaf(image, draw, x + side * (8 - 5 * t), y, side, spec, 32 - 6 * t)
+        nose = _codex_paint_fish_leaf(image, draw, x + side * (8 - 5 * t), y, side, spec, 32 - 6 * t)
         if side > 0:
-            nose = 10 + 2 * (32 - 6 * t) + 4
-            anchors.append((x + nose * math.cos(-0.5) + 8, y + nose * math.sin(-0.5)))
+            anchors.append(nose)
     _codex_paint_blossom(image, draw, rng)
     _codex_paint_seeds(image, draw, rng)
     _codex_paint_labels(draw, rng, anchors)
     # Plate caption under the specimen, in the script.
-    _codex_script(draw, _CODEX_PLATE[0] + 40, _CODEX_PLATE[3] - 4, _CODEX_PLATE[2] - 40,
-                  xh=5, rng=rng, fill=SPECTRA6["black"])
+    _codex_script(draw, _CODEX_PLATE[0] + 40, _CODEX_CAPTION_BASE, _CODEX_PLATE[2] - 40,
+                  xh=_CODEX_BODY_XH, rng=rng, fill=SPECTRA6["black"])
 
 
 def _codex_paint_rainbow(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
@@ -24660,14 +24713,17 @@ def _codex_paint_column(image: Image.Image, draw: ImageDraw.ImageDraw, rng: rand
     """The untranslated text: a red rubric heading and a paragraph of script
     above the quote, and a further paragraph below it."""
     x0, x1 = _CODEX_COLUMN
-    _codex_script(draw, x0 + 30, 58, x1 - 30, xh=8, rng=rng, fill=SPECTRA6["red"], width=2, max_words=4)
-    for i, base in enumerate((92, 112, 132)):
+    heading_base, heading_xh = _CODEX_HEADING
+    _codex_script(draw, x0 + 30, heading_base, x1 - 30, xh=heading_xh, rng=rng,
+                  fill=SPECTRA6["red"], width=2, max_words=4)
+    for i, base in enumerate(_CODEX_UPPER_LINES):
         # The first two lines stop short of the rainbow vignette.
         end = _CODEX_RAINBOW_CENTRE[0] - 58 if i < 2 else x0 + (x1 - x0) * rng.uniform(0.45, 0.8)
-        _codex_script(draw, x0 + (18 if i == 0 else 0), base, end, xh=5, rng=rng, fill=SPECTRA6["black"])
-    for i, base in enumerate((418, 438)):
+        _codex_script(draw, x0 + (18 if i == 0 else 0), base, end, xh=_CODEX_BODY_XH, rng=rng,
+                      fill=SPECTRA6["black"])
+    for i, base in enumerate(_CODEX_LOWER_LINES):
         end = x1 if i == 0 else x0 + (x1 - x0) * rng.uniform(0.4, 0.7)
-        _codex_script(draw, x0, base, end, xh=5, rng=rng, fill=SPECTRA6["black"])
+        _codex_script(draw, x0, base, end, xh=_CODEX_BODY_XH, rng=rng, fill=SPECTRA6["black"])
 
 
 def _codex_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
@@ -24688,24 +24744,29 @@ def _codex_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row:
     draw.line((mid - 60, rule_y, mid + 60, rule_y), fill=SPECTRA6["blue"], width=1)
     draw.polygon([(mid, rule_y - 4), (mid + 4, rule_y), (mid, rule_y + 4), (mid - 4, rule_y)],
                  fill=SPECTRA6["red"])
-    byline = load_font(theme_font_candidates("codex", "quote_bold"), max(14, int(size * 0.55)))
+    # Scaled with the body and clamped, so a dense quote fitted near the 15 pt
+    # floor keeps its attribution visibly subordinate rather than meeting a
+    # fixed 14 pt byline almost at body size.
+    byline = load_font(theme_font_candidates("codex", "quote_bold"),
+                       max(_CODEX_BYLINE_MIN, min(_CODEX_BYLINE_MAX, int(size * 0.55))))
     draw_truncated_centred_byline(draw, quote_row, centre=mid, baseline=rule_y + 22,
                                   max_width=x1 - x0 - 16, font=byline, fill=SPECTRA6["blue"])
 
 
-def _codex_paint_folio(draw: ImageDraw.ImageDraw, time_str: str) -> None:
+def _codex_paint_folio(draw: ImageDraw.ImageDraw, time_str: str) -> float:
     """The page number, bottom outer corner, in base-21 Serafinian numerals
-    between two small flourishes."""
+    between two small flourishes. Returns where the pen stopped after the last
+    digit, which is the column's right edge whatever digits the time needs."""
     digits = codex_page_digits(time_str)
     size = 20
-    advance = size * 0.95
-    total = len(digits) * advance
+    total = sum(_codex_numeral_advance(d, size) for d in digits)
     x = _CODEX_COLUMN[1] - total
     base = 462
     draw.arc((x - 24, base - 10, x - 6, base + 2), 200, 360, fill=SPECTRA6["blue"], width=1)
     for d in digits:
         x += _codex_numeral(draw, x, base, d, size=size, fill=SPECTRA6["red"])
     draw.arc((x + 2, base - 10, x + 20, base + 2), 180, 340, fill=SPECTRA6["blue"], width=1)
+    return x
 
 
 def render_codex_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
