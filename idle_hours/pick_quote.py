@@ -68,13 +68,13 @@ BAKED_SCORE_COMPONENTS: tuple[str, ...] = (
 BAKED_SCORE_SCHEMA_VERSION: int = 1
 
 EXACT_MINUTE_PATTERNS = {
-    "zero": ["o’clock", "oclock", "struck"],
+    "zero": ["o’clock", "o'clock", "oclock", "struck"],
     5: ["five minutes past", "five minutes after", "five past"],
     10: ["ten minutes past", "ten minutes after", "ten past"],
     15: ["quarter past"],
     20: ["twenty minutes past", "twenty past"],
     25: ["twenty-five minutes past", "twenty five minutes past", "twenty-five past", "twenty five past"],
-    30: ["half past", "half-past", "11:30", "12:30"],
+    30: ["half past", "half-past"],
     35: ["thirty-five minutes past", "thirty five minutes past", "twenty-five minutes to", "twenty five minutes to", "twenty-five to", "twenty five to"],
     40: ["twenty minutes to", "twenty to"],
     45: ["quarter to"],
