@@ -238,6 +238,11 @@ THEME_SATURATION: dict[str, float] = {
     # Sign and suns. Dark-ground tier, same as ``dark`` / ``grimdark``: the
     # yellow is the whole point and must not desaturate toward mustard.
     "carcosa": 0.7,
+    # Remedy's Control — the Astral Plane: white void, black condensed prose,
+    # K+W stipple blocks and a red Hiss phrase blooming into the white. Same
+    # chromatic-on-light profile as ``default`` / ``swiss``; the gentler tier
+    # keeps the coral halo a stain rather than a fire-engine smear.
+    "control": 0.5,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler

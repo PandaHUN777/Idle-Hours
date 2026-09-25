@@ -1874,7 +1874,8 @@ class TestFixedGeometryFramesDownscale:
     """
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
-                             "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl")
+                             "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
+                             "control")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -3871,3 +3872,160 @@ def ImageOps_exif_size(image):
     from PIL import ImageOps
     transposed = ImageOps.exif_transpose(image)
     return (transposed or image).size
+
+
+class TestControlFrame:
+    """``control`` — the Astral Plane, after Remedy's *Control*.
+
+    A white void with isometric stone blocks, the Board's inverted pyramid, a
+    concrete plinth carrying a black wayfinding sign, and the matched phrase in
+    Hiss red blooming a coral stipple into the white around it.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30"):
+        return rq.render(time_str, make_row(**(row or TestControlFrame.ROW)),
+                         800, 480, mode="production", theme="control")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "control" in rq.THEMES
+        assert "control" in rq.THEME_ORDER
+        assert "control" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["control"] == 0.5
+        # The title-card face: Antonio pinned to Bold for the body as well as
+        # the phrase — the phrase earns its step from the Hiss red, not weight.
+        for role in ("quote_regular", "quote_bold"):
+            assert rq.theme_font_candidates("control", role)[0] == (rq.ANTONIO_VARIABLE, "Bold")
+
+    def test_time_never_reaches_the_frame(self):
+        """The Astral Plane has no clock: the matched phrase carries the time,
+        so every time string must render byte-identically for one row."""
+        first = pixel_bytes(self._render(time_str="00:00"))
+        for time_str in ("03:15", "14:30", "23:59"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_frame_is_on_palette_and_deterministic(self):
+        image = self._render()
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_only_the_hiss_is_chromatic(self):
+        """Everything but the matched phrase — void, blocks, Board, plinth,
+        sign — is achromatic: red appears only inside the quote rect, and a
+        row with no matched phrase paints no red at all."""
+        red = rq.SPECTRA6["red"]
+        image = self._render()
+        assert ink_counts(image).get(red, 0) > 0
+        x0, y0, x1, y1 = rq._CONTROL_QUOTE_RECT
+        px = image.load()
+        stray = [
+            (x, y) for y in range(480) for x in range(800)
+            if px[x, y] == red and not (x0 <= x < x1 and y0 <= y < y1)
+        ]
+        assert not stray, f"red outside the quote rect at {stray[:5]}"
+        assert distinct_inks(image) <= {red, rq.SPECTRA6["black"], rq.SPECTRA6["white"]}
+        plain = self._render({**self.ROW, "matched_text": ""})
+        assert ink_counts(plain).get(red, 0) == 0
+
+    def test_hiss_halo_survives_panel_distance(self, monkeypatch):
+        """The bloom is not a token: the halo carries a substantial fraction of
+        the phrase's own red, which is what keeps it visible once the panel is
+        box-averaged by viewing distance (the ``izakaya`` lesson — parameters
+        tuned at 1:1 produce a bloom that vanishes at 1-3 m)."""
+        red = rq.SPECTRA6["red"]
+        full = ink_counts(self._render()).get(red, 0)
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        core = ink_counts(self._render()).get(red, 0)
+        assert core > 0
+        assert full - core >= 0.2 * core, (
+            f"halo carries {full - core} red px against a {core} px core"
+        )
+
+    def test_halo_never_eats_the_prose(self, monkeypatch):
+        """``ground`` pins the bloom to white: the black prose beside the phrase
+        must be identical with and without the halo."""
+        black = rq.SPECTRA6["black"]
+        with_halo = self._render()
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        without = self._render()
+        a, b = with_halo.load(), without.load()
+        lost = [(x, y) for y in range(480) for x in range(800) if b[x, y] == black and a[x, y] != black]
+        assert not lost, f"halo overwrote prose at {lost[:5]}"
+
+    def test_blocks_are_shaded_solids(self):
+        """A block is three faces under one light: its lit face carries a
+        sparser black stipple than its shadow face, and both are K+W only."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+        draw = ImageDraw.Draw(image)
+        rq._control_paint_blocks(image, draw)
+        assert distinct_inks(image) <= {rq.SPECTRA6["black"], rq.SPECTRA6["white"]}
+        top_x, top_y, side, height = rq._CONTROL_BLOCKS[0]
+        _, left_face, right_face = rq._control_block_faces(top_x, top_y, side, height)
+
+        def black_share(face):
+            mask = Image.new("1", image.size, 0)
+            ImageDraw.Draw(mask).polygon([(int(x), int(y)) for x, y in face], fill=1)
+            # Shrink away from the outline stroke so the edge does not count.
+            mp, px = mask.load(), image.load()
+            hits = total = 0
+            bx0, by0, bx1, by1 = mask.getbbox()
+            for y in range(by0 + 3, by1 - 3):
+                for x in range(bx0 + 3, bx1 - 3):
+                    if mp[x, y]:
+                        total += 1
+                        hits += px[x, y] == rq.SPECTRA6["black"]
+            return hits / max(1, total)
+
+        lit, shade = black_share(left_face), black_share(right_face)
+        assert 0.15 < lit < 0.45
+        assert 0.45 < shade < 0.8
+        assert lit < shade
+
+    def test_board_lines_are_labels_over_the_rows_own_values(self):
+        """The Board's paired diction supplies the labels; the values are the
+        row's author and title, uppercased and never invented."""
+        assert rq._control_board_lines(make_row(**self.ROW)) == [
+            "AUTHOR/ORIGIN: JANE AUSTEN",
+            "WORK/VESSEL: EMMA",
+        ]
+        bare = make_row(**{**self.ROW, "author": "", "title": ""})
+        assert rq._control_board_lines(bare) == ["WORK/VESSEL: PROJECT GUTENBERG #158"]
+        nothing = make_row(**{**self.ROW, "author": "", "title": "", "source_id": "", "source_path": ""})
+        assert rq._control_board_lines(nothing) == []
+
+    def test_sign_and_plinth_are_confined_to_the_foot(self):
+        """The plinth owns the band below ``_CONTROL_PLINTH_Y`` and nothing
+        above it — a row rendered with an empty quote leaves the void white
+        between the Board and the plinth, save for the blocks in the margins."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+        draw = ImageDraw.Draw(image)
+        rq._control_paint_plinth(image, draw)
+        rq._control_paint_sign(image, draw, make_row(**self.ROW))
+        px = image.load()
+        top = rq._CONTROL_PLINTH_Y
+        assert all(px[x, y] == rq.SPECTRA6["white"] for y in range(0, top - 1, 7) for x in range(0, 800, 7))
+        band = sum(px[x, y] == rq.SPECTRA6["black"] for y in range(top, 480) for x in range(800))
+        assert band > 0.3 * (480 - top) * 800
