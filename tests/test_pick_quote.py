@@ -850,6 +850,7 @@ class TestInferQuoteMinute:
 
     @pytest.mark.parametrize("phrase,minute", [
         ("o’clock", 0),
+        ("o'clock", 0),
         ("oclock", 0),
         ("the clock struck twelve", 0),
         ("five minutes past two", 5),
@@ -878,6 +879,10 @@ class TestInferQuoteMinute:
     def test_matched_text_case_insensitive(self):
         row = {"matched_text": "QUARTER PAST THREE"}
         assert pq.infer_quote_minute(row) == 15
+
+    def test_digital_time_is_not_a_phrase_fallback(self):
+        assert pq.infer_quote_minute({"matched_text": "11:30"}) is None
+        assert pq.infer_quote_minute({"matched_text": "12:30"}) is None
 
     def test_matched_text_with_embedded_newline(self):
         # gutenberg_time_miner now collapses newlines, but legacy rows may still
