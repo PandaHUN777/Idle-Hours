@@ -257,6 +257,7 @@ def parse_args() -> argparse.Namespace:
         "observation",
         "trisolaris",
         "biomech",
+        "codex",
         "diags",
     ]
     parser.add_argument(

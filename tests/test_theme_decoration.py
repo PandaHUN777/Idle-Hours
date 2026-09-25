@@ -101,6 +101,7 @@ CUSTOM_FRAME_THEMES = (
     "observation",
     "trisolaris",
     "biomech",
+    "codex",
 )
 
 # ``diags`` is the developer swatch panel, not a literary theme: it paints its

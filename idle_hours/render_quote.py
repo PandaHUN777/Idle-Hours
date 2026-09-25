@@ -136,6 +136,7 @@ THEME_ORDER: tuple[str, ...] = (
     "observation",
     "trisolaris",
     "biomech",
+    "codex",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -150,6 +151,24 @@ THEME_ORDER: tuple[str, ...] = (
 # on the panel with nobody there to pick a different theme, which is exactly
 # what this set is for.
 CYCLE_EXCLUDED_THEMES: frozenset[str] = frozenset({"vinyl"})
+# Who reads a custom-frame theme's palette. A theme with its own
+# ``render_<theme>_frame`` paints its own inks, but still needs a THEMES entry,
+# because three paths draw from the palette alone and never call the frame:
+#
+# * ``render_source_card`` — the button-C overlay (``render`` checks
+#   ``mode == "card"`` before dispatching to any frame);
+# * ``render_static_message`` — ``--mode goodnight --message TEXT`` only;
+# * ``contact_sheet`` — the sheet's gutters, captions and placeholder tiles.
+#
+# The quiet-hours sleep frame is NOT one of them. ``render_sleep_frame`` goes
+# through ``render`` like any quote, so a custom-frame theme's sleep frame is
+# its own frame. Entry comments used to say these palettes "serve only the
+# goodnight / source-card fall-through paths" — true when goodnight was a bare
+# headline, false once the sleep quote became a corpus row — and the sentence
+# had been copied into nearly every custom-frame entry — each new theme copied
+# it again from its neighbour. It lives here once instead: a new entry should
+# point at this note rather than restate it. (``diags`` is the one frame that
+# also reads its own entry, for its status labels.)
 THEMES = {
     "default": {
         "page_bg": SPECTRA6["white"],
@@ -900,8 +919,7 @@ THEMES = {
     # and the matched-phrase tangerine is the same R+Y 5/8:3/8 recipe
     # ``deco`` / ``atomic`` use so the body accent and the dial share
     # one perceived warm orange at panel distance. The palette stays
-    # white/black/red so the fall-through paths (``render_static_message``
-    # for goodnight, ``render_source_card`` for the button-C overlay)
+    # white/black/red so the palette-only paths (see the note above ``THEMES``)
     # render readably without needing astrarium-specific code.
     "astrarium": {
         "page_bg": SPECTRA6["white"],
@@ -1051,9 +1069,8 @@ THEMES = {
     # the Roman-numeral hour, and the literary quote glowing in a clear
     # white-glass central cartouche knocked out of the colored field so
     # the body text stays legible. The matched time phrase renders in
-    # violet-glass R+B purple. The palette below is only consumed by the
-    # fall-through paths (render_static_message for goodnight,
-    # render_source_card for the button-C overlay) — the frame itself
+    # violet-glass R+B purple. The palette below is only consumed by
+    # the palette-only paths (see the note above ``THEMES``) — the frame itself
     # hardcodes SPECTRA6 inks — so it's a clean white/black ground with a
     # blue (violet-glass) accent.
     "vitrail": {
@@ -1117,8 +1134,8 @@ THEMES = {
     # in yellow), the author as the speaker nameplate, and the book title as a
     # footer. Black night-sky ground; white body text; yellow matched-phrase
     # accent (the classic "highlighted keyword" tint of RPG dialogue). The
-    # palette is consulted by fit_quote / _draw_text_body inside the frame and
-    # by the goodnight / source-card fall-through paths.
+    # frame hardcodes those inks; ``fit_quote`` takes the theme name only to
+    # pick fonts. The palette serves the palette-only paths (see the note above ``THEMES``).
     "questline": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1136,7 +1153,7 @@ THEMES = {
     # with a rounded beveled border, a character *portrait* sub-window, and
     # the quote as on-screen dialogue (matched phrase in yellow Pixelify Sans
     # Bold). Blue ground; white body; yellow accent. The palette is consulted
-    # by the goodnight / source-card fall-through paths.
+    # by the palette-only paths (see the note above ``THEMES``).
     "chrono": {
         "page_bg": SPECTRA6["blue"],
         "text": SPECTRA6["white"],
@@ -1155,10 +1172,11 @@ THEMES = {
     # gradient sliced by widening horizontal slits), and a cyan/magenta neon
     # perspective grid receding to a central vanishing point. The literary
     # quote floats in the dark upper sky in white Oxanium with the matched
-    # time-phrase picked out in synthesised cyan (G+B); the author/title sit
+    # time-phrase picked out in synthesised red-biased magenta (R+B 5/8:3/8 —
+    # an earlier green+blue teal read dim against the cool sky); the author/title sit
     # below as a small Antonio credit line. Black ground; white body; the
-    # palette here is consulted only by the goodnight / source-card
-    # fall-through paths (the frame itself hardcodes the Spectra-6 inks).
+    # palette here is consulted only by the palette-only paths (see the note above ``THEMES``)
+    # — the frame itself hardcodes the Spectra-6 inks.
     "outrun": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1208,13 +1226,28 @@ THEMES = {
         "ornament_light": SPECTRA6["yellow"],
         "source": SPECTRA6["white"],
     },
+    # Codex Seraphinianus — Luigi Serafini's imaginary encyclopedia (1981). A
+    # custom frame (``render_codex_frame``): cream page, a chimerical plant
+    # plate in full-palette colour, columns of procedurally generated asemic
+    # script, the quote as the page's one deciphered passage, and the time as
+    # a base-21 page number in invented numerals. These slots are read only by
+    # the palette-only paths (see the note above ``THEMES``).
+    "codex": {
+        "page_bg": SPECTRA6["white"],
+        "text": SPECTRA6["black"],
+        "subtle": SPECTRA6["black"],
+        "faint": SPECTRA6["black"],
+        "accent": SPECTRA6["red"],
+        "ornament_dark": SPECTRA6["blue"],
+        "ornament_light": SPECTRA6["blue"],
+        "source": SPECTRA6["blue"],
+    },
     # Remedy's *Control* — the Astral Plane. A custom frame
     # (``render_control_frame``): white void, floating isometric stone blocks
     # in K+W stipple, the Board's inverted black pyramid, a concrete plinth
     # carrying a black wayfinding sign. Black condensed prose; the matched
     # phrase is Hiss red with a coral bloom stippled into the white around it.
-    # The literary-layout slots below serve only the goodnight / source-card
-    # fall-through paths.
+    # The literary-layout slots below serve only the palette-only paths (see the note above ``THEMES``).
     "control": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -1230,8 +1263,7 @@ THEMES = {
     # its polar hexagon and lit rings, a glowing hexagonal anomaly under a
     # tracking reticle, and the quote as an audio-log transcript in a S.A.M.
     # HUD panel. White prose, yellow matched phrase with a tangerine halo.
-    # The literary-layout slots below serve only the goodnight / source-card
-    # fall-through paths.
+    # The literary-layout slots below serve only the palette-only paths (see the note above ``THEMES``).
     "observation": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1247,8 +1279,8 @@ THEMES = {
     # planet whose positions come from an actual gravitational integration
     # driven by the clock, the Red Coast Base dish on a ridge at the foot.
     # White prose; the matched phrase is sunlight — a yellow core in a
-    # tangerine bloom. The literary-layout slots below serve only the
-    # goodnight / source-card fall-through paths.
+    # tangerine bloom. The literary-layout slots below serve only
+    # the palette-only paths (see the note above ``THEMES``).
     "trisolaris": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1265,7 +1297,7 @@ THEMES = {
     # height field, framing a pointed arch through which a Beksiński ruin
     # stands against a blood-red sky. Bone-white prose; the matched phrase is
     # an ember — yellow core, red bloom. The literary-layout slots below serve
-    # only the goodnight / source-card fall-through paths.
+    # only the palette-only paths (see the note above ``THEMES``).
     "biomech": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1331,7 +1363,7 @@ THEMES = {
         "source": SPECTRA6["white"],
     },
     # Engraved art-song manuscript. A custom-render frame, so these colours
-    # serve only the goodnight / source-card fall-through paths; the frame
+    # serve only the palette-only paths (see the note above ``THEMES``); the frame
     # itself hardcodes its three-tier ink hierarchy (black plate / maroon
     # editorial / red voice — see the lieder section comment).
     "lieder": {
@@ -1345,7 +1377,7 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # Neon alley at night. A custom-render frame, so these colours serve only
-    # the goodnight / source-card fall-through paths; the frame itself paints
+    # the palette-only paths (see the note above ``THEMES``); the frame itself paints
     # its tube cores and blooms directly (see the izakaya section comment).
     "izakaya": {
         "page_bg": SPECTRA6["black"],
@@ -1357,8 +1389,8 @@ THEMES = {
         "ornament_light": SPECTRA6["white"],
         "source": SPECTRA6["white"],
     },
-    # Deep sea. A custom-render frame, so these colours serve only the
-    # goodnight / source-card fall-through paths; the frame paints its own
+    # Deep sea. A custom-render frame, so these colours serve only
+    # the palette-only paths (see the note above ``THEMES``); the frame paints its own
     # depth gradient and blooms (see the abyssal section comment).
     "abyssal": {
         "page_bg": SPECTRA6["blue"],
@@ -1374,9 +1406,8 @@ THEMES = {
     # (``render_pride_frame``) that bypasses the literary layout entirely — the
     # flag is full-bleed and the quote sits in a white cartouche knocked out of
     # the cloth, so the shared margins / oversized quote marks / debug footer
-    # have nothing to sit on. The palette below is consumed only by the
-    # fall-through paths (``render_static_message`` for goodnight,
-    # ``render_source_card`` for the button-C overlay); the frame itself picks
+    # have nothing to sit on. The palette below is consumed only by
+    # the palette-only paths (see the note above ``THEMES``); the frame itself picks
     # its stripe inks from ``_PRIDE_STRIPE_INKS``. ``accent`` is blue because
     # the frame's matched phrase is the R+B violet stipple and blue is the half
     # of that recipe which still reads on the white card.
@@ -1393,7 +1424,7 @@ THEMES = {
     # 1940s lurid paperback front. A custom-render frame (``render_pulp_frame``)
     # that owns the canvas — masthead, cover title, blurb band, price flash and
     # corner banner leave nothing for the shared literary layout to sit on. The
-    # palette below serves only the goodnight / source-card fall-through paths.
+    # palette below serves only the palette-only paths (see the note above ``THEMES``).
     "pulp": {
         "page_bg": SPECTRA6["yellow"],
         "text": SPECTRA6["black"],
@@ -1406,8 +1437,8 @@ THEMES = {
     },
     # Bakelite console — an amber-phosphor CRT set into a moulded butterscotch
     # slab (see the ``render_bakelite_frame`` section comment). A custom frame,
-    # so these values are consumed only by the goodnight / source-card
-    # fall-through paths; the frame itself hardcodes its inks. ``text`` is the
+    # so these values are consumed only by the palette-only paths (see the note above ``THEMES``);
+    # the frame itself hardcodes its inks. ``text`` is the
     # yellow phosphor core, ``accent`` the red halo that surrounds every lit
     # glyph, and ``page_bg`` the black glass the tube sits behind.
     "bakelite": {
@@ -1421,8 +1452,8 @@ THEMES = {
         "source": SPECTRA6["red"],
     },
     # Banknote / security engraving. A custom-render frame
-    # (``render_intaglio_frame``) — the palette below serves only the goodnight /
-    # source-card fall-through paths. The face itself is the three-plate
+    # (``render_intaglio_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The face itself is the three-plate
     # structure of a real note: black intaglio, green tint lathework, red
     # numbering press, on white paper.
     "intaglio": {
@@ -1436,8 +1467,8 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # Whistler nocturne — blue-and-gold night river. A custom-render frame
-    # (``render_nocturne_frame``); the palette below serves only the goodnight /
-    # source-card fall-through paths. The canvas itself is flow-field blue
+    # (``render_nocturne_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The canvas itself is flow-field blue
     # brushwork over black with synthesised-gold light.
     "nocturne": {
         "page_bg": SPECTRA6["black"],
@@ -1450,9 +1481,10 @@ THEMES = {
         "source": SPECTRA6["blue"],
     },
     # Patinated bronze memorial plaque. A custom-render frame
-    # (``render_plaque_frame``); the palette below serves only the goodnight /
-    # source-card fall-through paths. The tablet itself is forest-teal
-    # verdigris carrying relief-lit gold lettering.
+    # (``render_plaque_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The tablet itself
+    # is dark verdigris carrying relief-lit burnished-brass lettering (it was
+    # forest-teal with gold until both measured too low-contrast to read).
     "plaque": {
         "page_bg": SPECTRA6["green"],
         "text": SPECTRA6["yellow"],
@@ -1464,8 +1496,8 @@ THEMES = {
         "source": SPECTRA6["yellow"],
     },
     # Cased 1850s daguerreotype. A custom-render frame
-    # (``render_daguerreotype_frame``); the palette below serves only the
-    # goodnight / source-card fall-through paths. The case itself is a brass
+    # (``render_daguerreotype_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The case itself is a brass
     # mat around an Atkinson-dithered monochrome plate.
     "daguerreotype": {
         "page_bg": SPECTRA6["white"],
@@ -1478,8 +1510,8 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # Autochrome Lumiere colour plate in its passe-partout. A custom-render
-    # frame (``render_autochrome_frame``); the palette below serves only the
-    # goodnight / source-card fall-through paths. The frame itself is a
+    # frame (``render_autochrome_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The frame itself is a
     # six-ink-dithered photograph under black binding tape, quote on a cream card.
     "autochrome": {
         "page_bg": SPECTRA6["white"],
@@ -1492,8 +1524,8 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # The operator's own photograph. A custom-render frame
-    # (``render_photo_frame``); the palette below serves only the goodnight /
-    # source-card fall-through paths. The picture is whatever
+    # (``render_photo_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The picture is whatever
     # ``IDLE_HOURS_PHOTO_PATH`` names, conditioned and dithered against all six
     # inks, with the quote on a cream card placed over its quietest region.
     "photo": {
@@ -1508,8 +1540,8 @@ THEMES = {
     },
     # Library catalogue card. A custom-render frame (``render_cardcatalog_frame``)
     # — the stamp column needs a right margin the shared literary layout does not
-    # leave, see that frame's section comment. The palette below serves only the
-    # goodnight / source-card fall-through paths; the card itself is manila
+    # leave, see that frame's section comment. The palette below serves only
+    # the palette-only paths (see the note above ``THEMES``); the card itself is manila
     # (cream + sepia foxing) with violet library ink.
     "cardcatalog": {
         "page_bg": SPECTRA6["white"],
@@ -1524,7 +1556,7 @@ THEMES = {
     # Worn VHS tape under a camcorder OSD. A custom-render frame
     # (``render_vhs_frame``) that owns the canvas — the quote is composite-video
     # text over tape noise, not prose in a layout — so the palette below serves
-    # only the goodnight / source-card fall-through paths. Red and blue are the
+    # only the palette-only paths (see the note above ``THEMES``). Red and blue are the
     # two chroma records that drift apart in ``draw_text_chroma_shift``; the
     # body itself is white.
     "vhs": {
@@ -1576,9 +1608,9 @@ THEMES = {
     # the diags theme to a special status layout (clock + bucket / layout /
     # quality / source fields + a swatch grid showing the Spectra 6 palette
     # and the 2-ink synthesised tones documented in CLAUDE.md). The palette
-    # itself is white/black/red so the fall-through paths (render_static_message
-    # for goodnight, render_source_card for the button-C overlay) still render
-    # readably without needing their own diags-specific code.
+    # itself is white/black/red so the palette-only paths (see the note above ``THEMES``) still
+    # render readably without needing their own diags-specific code — and the
+    # frame reads it too, for its status labels.
     "diags": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -1597,8 +1629,8 @@ THEMES = {
     # is stitched in black floss with the matched time-phrase in red floss (the
     # time signal — no digital HH:MM is surfaced). The cream ground is
     # synthesised at render time via a Y+W stipple wash, so the THEMES palette
-    # here is plain white/black/red — consulted only by the goodnight /
-    # source-card fall-through paths, never by the frame itself.
+    # here is plain white/black/red — consulted only by
+    # the palette-only paths (see the note above ``THEMES``), never by the frame itself.
     "sampler": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -2109,6 +2141,14 @@ LATO_ITALIC = str(BASE_DIR / "fonts/lato/Lato-Italic.ttf")
 ALMENDRA_REGULAR = str(BASE_DIR / "fonts/almendra/Almendra-Regular.ttf")
 ALMENDRA_BOLD = str(BASE_DIR / "fonts/almendra/Almendra-Bold.ttf")
 ALMENDRA_DISPLAY = str(BASE_DIR / "fonts/almendra/AlmendraDisplay-Regular.ttf")
+# Fondamento (Astigmatic, OFL) — a calligraphic book hand with the broad-nib
+# modulation of an Italian chancery script. The Codex Seraphinianus is Luigi
+# Serafini's *handwritten* encyclopedia, so the one deciphered passage on a
+# `codex` page is set in a pen hand rather than a typeset serif; the Italic cut
+# carries the matched phrase (roman/italic split plus colour, the `cartograph`
+# move — Fondamento ships no bold). `codex` is its sole consumer.
+FONDAMENTO_REGULAR = str(BASE_DIR / "fonts/fondamento/Fondamento-Regular.ttf")
+FONDAMENTO_ITALIC = str(BASE_DIR / "fonts/fondamento/Fondamento-Italic.ttf")
 
 THEME_FONTS: dict[str, dict[str, list]] = {
     "default": {
@@ -3425,9 +3465,9 @@ THEME_FONTS: dict[str, dict[str, list]] = {
     # the status-grid layout, not the literary frame — a clean grotesque
     # sans reads better at small label sizes than the Playfair serif
     # default. Picks a different *family* (sans) from default/dark
-    # (transitional serif) so the fall-through paths (goodnight,
-    # source card) also look visibly different rather than aliasing
-    # default.
+    # (transitional serif) so the palette-only paths (the source card, the
+    # ``--message`` headline) also look visibly different rather than
+    # aliasing default.
     # Press Start 2P everywhere — body, matched-phrase accent, and the
     # nameplate / footer chrome. Single weight, so quote_bold reuses Regular
     # and the matched phrase differentiates through the yellow accent alone
@@ -3545,6 +3585,29 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         "ornament": [
             ALMENDRA_DISPLAY,
             ALMENDRA_BOLD,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "codex": {
+        # Fondamento — a calligraphic pen hand for Serafini's handwritten
+        # encyclopedia. Regular body, Italic matched phrase (no bold cut
+        # exists; the italic plus the red carries the step). Falls back
+        # through the bundled IM Fell English, the nearest period book hand,
+        # before the system serifs.
+        "quote_regular": [
+            FONDAMENTO_REGULAR,
+            IMFELLENGLISH_REGULAR,
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            FONDAMENTO_ITALIC,
+            IMFELLENGLISH_ITALIC,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            FONDAMENTO_ITALIC,
+            FONDAMENTO_REGULAR,
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
@@ -12711,7 +12774,7 @@ def draw_cartograph_border(
       surrounding decoration sets up.
 
     When ``clear_rect`` is None (direct-call test path,
-    ``render_static_message`` for the goodnight frame, and
+    ``render_static_message`` for the ``--message`` goodnight headline, and
     ``render_source_card`` for the button-C overlay), Layers 9 / 10
     are skipped; all the map layers still paint, so the cartograph
     identity survives the fall-through paths.
@@ -14746,8 +14809,10 @@ def draw_synoptic_border(image: Image.Image, colors: dict, clear_rect=None, time
 #   the matched phrase carries the readable time, the bar and the daypart
 #   pill carry the shape of the day, the posture ``questline`` / ``outrun``
 #   take but without ``del``-asserting ``time_str``. The registry path (the
-#   button-C source card, the goodnight frame) has no time and draws an
-#   empty track, which is correct for a page that is not a reading.
+#   button-C source card, the ``--message`` headline) has no time and draws
+#   an empty track, which is correct for a page that is not a reading. The
+#   quiet-hours sleep frame is not on that path: it goes through ``render``
+#   with the entry time, so it carries a real track and daypart pill.
 # * **Legend.** The app's five answer tiers along the foot — ● Love it ●
 #   Like it ● Neutral ● Curious ● Hard No — each dot in its tier colour,
 #   labels in Inter SemiBold. The tiers are the app's palette and they map
@@ -15139,7 +15204,8 @@ def draw_betweenus_border(image: Image.Image, colors: dict, clear_rect=None, tim
     ``time_str``) compose identically. ``time_str`` is optional for the same
     reason as ``draw_synoptic_border``'s: the ``_BORDER_PAINTERS`` contract
     passes only ``(image, colors, clear_rect)``, so the source card and the
-    goodnight frame get an empty track and no daypart pill.
+    ``--message`` headline get an empty track and no daypart pill. The sleep
+    frame goes through ``render`` with a time, so it gets both.
     """
     width, height = image.size
     dark = _betweenus_is_dark(colors)
@@ -15747,11 +15813,12 @@ def render_source_card(quote_row: dict, width: int, height: int, theme: str = "d
 def render_static_message(message: str, width: int, height: int, theme: str = "default") -> Image.Image:
     """Render a centered headline message in the active theme.
 
-    Used by the ``--quiet-image=auto`` and ``--startup-image=auto`` sentinels
-    so the goodnight / startup frame matches the operator's chosen theme
-    instead of always showing the dark ``assets/goodnight.png``. Reuses the
-    theme palette, border, and bundled fonts so it visually matches the quote
-    frame an operator sees seconds before quiet hours begin.
+    The opt-in ``--mode goodnight --message TEXT`` path. It used to back the
+    ``--quiet-image=auto`` / ``--startup-image=auto`` sentinels too; those now
+    go through :func:`render_sleep_frame`, which renders the sleep quote with
+    the full literary layout (or the theme's own frame). Reuses the theme
+    palette, border and bundled fonts, but never a custom frame — so for a
+    custom-frame theme this reads only the ``THEMES`` palette.
     """
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
@@ -25975,6 +26042,562 @@ def render_biomech_frame(time_str: str, quote_row: dict, width: int, height: int
 
 
 # ---------------------------------------------------------------------------
+# codex — a page of the Codex Seraphinianus
+# ---------------------------------------------------------------------------
+# Luigi Serafini's imaginary encyclopedia (1981): a book of a world that does
+# not exist, written in a script nobody can read, illustrated in vivid coloured
+# pencil. The page is laid out as one of its botanical entries — a chimerical
+# plant plate on the left, columns of asemic script on the right — and the
+# quote is the one passage on the page that has been *deciphered*: set in a pen
+# hand between lines of the untranslated script, as though a reader had
+# pencilled the gloss in.
+#
+# **The script is generated, not typeset.** No font can carry it, because the
+# point of Serafini's writing is that it is not an alphabet. ``_codex_script``
+# drives a pen along a prolate trochoid — the curve a point on a rolling wheel
+# traces when it sits outside the rim — which is the same mathematics as a
+# cursive hand: the pen rises, overshoots backwards and crosses its own path
+# (a loop) whenever the backward swing outruns the forward advance. Per letter
+# the swing, height and direction are drawn from a seeded RNG, so each quote
+# gets its own page of script, byte-identical across renders (seeded from
+# ``_row_digest``, never ``hash()``).
+#
+# **The time is the page number.** Serafini numbered his pages in an invented
+# numeral system that readers later worked out to be base 21. The frame writes
+# the minute of the day in base 21 (at most three digits: 20·441 + 20·21 + 20
+# is well past 1439) using twenty-one invented digit glyphs, each built from the
+# bits of its value so every digit is distinct and the *same* digit always looks
+# the same — which is what makes it a numeral system rather than decoration.
+# Undecipherable at a glance, exactly as in the book, but a determined reader
+# can decode it; the readable time stays with the matched phrase.
+#
+# **Vibrancy is carried by the plate, not the ground.** The page stays a calm
+# cream so the dense script columns read; the plant surfaces every native ink
+# and six documented two-ink recipes at once — a rainbow-banded stem (red,
+# tangerine R+Y, yellow, green, blue, violet R+B), fish-shaped leaves in teal
+# G+B and mint G+W with blue scale arcs, rose R+W and violet petals around a
+# blue-irised eye, sepia R+G roots. Colour choices per plant are seeded from the
+# row, so each entry in the encyclopedia is a different specimen.
+_CODEX_PLATE = (20, 40, 324, 452)            # the illustration's clear field
+_CODEX_STEM_BASE = (128, 404)
+_CODEX_STEM_TOP = (140, 118)
+_CODEX_COLUMN = (344, 772)                   # text column x-range
+_CODEX_QUOTE_RECT = (344, 146, 772, 392)
+_CODEX_RAINBOW_CENTRE = (716, 76)
+_CODEX_BANDS = (
+    ("solid", SPECTRA6["red"]),
+    ("2", SPECTRA6["red"], SPECTRA6["yellow"], 0.375),      # tangerine
+    ("solid", SPECTRA6["yellow"]),
+    ("solid", SPECTRA6["green"]),
+    ("solid", SPECTRA6["blue"]),
+    ("2", SPECTRA6["red"], SPECTRA6["blue"], 0.5),          # violet
+)
+_CODEX_LEAF_FILLS = (
+    ("2", SPECTRA6["green"], SPECTRA6["blue"], 0.375),      # teal
+    ("2", SPECTRA6["green"], SPECTRA6["white"], 0.5),       # mint
+    ("solid", SPECTRA6["green"]),
+)
+_CODEX_PETAL_FILLS = (
+    ("2", SPECTRA6["red"], SPECTRA6["white"], 0.5),         # rose
+    ("2", SPECTRA6["red"], SPECTRA6["blue"], 0.5),          # violet
+)
+_CODEX_SEPIA = ("2", SPECTRA6["red"], SPECTRA6["green"], 0.5)
+_CODEX_TANGERINE = ("2", SPECTRA6["red"], SPECTRA6["yellow"], 0.375)
+_CODEX_CREAM_DENSITY = 14                    # of 256: sparse Y+W paper wash
+_CODEX_NUMERAL_BASE = 21
+_CODEX_WORD_OVERHEAD = 1.6                   # x-heights: lead-in + exit tail + loop overshoot
+# How far a line of script can reach from its baseline, in x-heights. Every
+# letter shape and diacritic is drawn inside these bounds, and every stacked
+# pair of lines on the page is pitched at least ``BELOW·xh_upper +
+# ABOVE·xh_lower`` apart, so an ascender can never cross the descender of the
+# line above it (fenced by ``TestCodexFrame``).
+_CODEX_REACH_ABOVE = 2.1
+_CODEX_REACH_BELOW = 1.5
+_CODEX_HEADING = (58, 8)                     # (baseline, x-height) of the red rubric
+_CODEX_UPPER_LINES = (92, 112, 132)          # script paragraph above the quote
+_CODEX_LOWER_LINES = (418, 438)              # script paragraph below it
+_CODEX_CAPTION_BASE = 466                    # plate caption, clear below the roots
+_CODEX_BODY_XH = 5
+_CODEX_BYLINE_MIN = 12
+_CODEX_BYLINE_MAX = 18
+
+
+def _codex_paint_page(image: Image.Image) -> None:
+    """Cream paper: a sparse aperiodic yellow scatter over white.
+
+    A hash field rather than a Bayer rank for the reason ``position_noise``
+    documents — at a sparse density an ordered tile lays a visible lattice —
+    and the seeded C-speed field ``_tarot_noise`` provides rather than a
+    per-pixel Python call, because it covers the whole canvas.
+    """
+    noise = _tarot_noise(image.width, image.height, 0xC0DE)
+    mask = noise.point(lambda v: 255 if v < _CODEX_CREAM_DENSITY else 0)
+    image.paste(SPECTRA6["yellow"], (0, 0), mask)
+    noise.close()
+    mask.close()
+
+
+def _codex_letter_points(x0: float, base: float, xh: float, rng: random.Random) -> tuple[list, float, bool]:
+    """One asemic letter as a pen path that starts and ends on the baseline.
+
+    ``x = x0 + w·t + r·sin 2πt`` swings forward on the way up and back on the
+    way down, crossing its own stroke (a loop) whenever ``r > w/4``. The vertical
+    excursion is up for an ordinary letter, much taller for an ascender and
+    below the line for a descender, so a line of these carries the rhythm of a
+    cursive hand without being one. The third return value flags an ascender
+    or descender, over which no diacritic is placed.
+    """
+    kind = rng.random()
+    w = xh * rng.uniform(0.7, 1.25)
+    above, below = _CODEX_REACH_ABOVE, _CODEX_REACH_BELOW
+    if kind < 0.14:
+        h, sign, r = xh * rng.uniform(above - 0.5, above), -1, w * rng.uniform(0.32, 0.45)   # ascender loop
+    elif kind < 0.24:
+        h, sign, r = xh * rng.uniform(below - 0.4, below), 1, w * rng.uniform(0.3, 0.42)    # descender loop
+    elif kind < 0.62:
+        h, sign, r = xh * rng.uniform(0.8, 1.1), -1, w * rng.uniform(0.28, 0.4)      # small loop
+    else:
+        h, sign, r = xh * rng.uniform(0.7, 1.0), -1, w * rng.uniform(0.0, 0.18)      # hump
+    steps = 14
+    pts = []
+    for i in range(steps + 1):
+        t = i / steps
+        x = x0 + w * t + r * math.sin(2 * math.pi * t)
+        y = base + sign * h * (1 - math.cos(2 * math.pi * t)) / 2
+        pts.append((x, y))
+    return pts, x0 + w, kind < 0.24
+
+
+def _codex_script(draw: ImageDraw.ImageDraw, x: float, base: float, x_end: float, *,
+                  xh: float, rng: random.Random, fill, width: int = 1,
+                  max_words: int | None = None) -> float:
+    """Write a line of asemic script from ``x`` to at most ``x_end``.
+
+    Words of 2–7 letters joined in one continuous stroke, the pen lifted
+    between words; an occasional diacritic dot or hook above a letter, the
+    furniture every alphabet grows. Returns the x where the pen stopped.
+    """
+    words = 0
+    while x < x_end:
+        n = rng.randint(2, 7)
+        # Never start a word that cannot finish inside the line. The budget is
+        # the worst case, not the average: the widest letter (1.25 x-heights),
+        # plus the lead-in, the exit tail and the furthest a loop can swing
+        # past its letter's end — so the ink provably stops at ``x_end``.
+        if x + (n * 1.25 + _CODEX_WORD_OVERHEAD) * xh > x_end:
+            n = int((x_end - x) / xh - _CODEX_WORD_OVERHEAD) * 4 // 5
+            if n < 2:
+                break
+        pts = [(x, base)]
+        lead = xh * 0.35
+        pts.append((x + lead, base - xh * 0.25))
+        cx = x + lead
+        marks = []
+        for _ in range(n):
+            letter, cx, tall = _codex_letter_points(cx, base, xh, rng)
+            pts.extend(letter[1:])
+            # Diacritics sit over short letters only, where there is headroom
+            # inside the reach bound; over an ascender they would collide
+            # with it or climb out of the line.
+            if not tall and rng.random() < 0.14:
+                marks.append((letter[len(letter) // 2][0], base - xh * (_CODEX_REACH_ABOVE - 0.45)))
+        pts.append((cx + xh * 0.4, base - xh * 0.2))
+        draw.line(pts, fill=fill, width=width, joint="curve")
+        for mx, my in marks:
+            if rng.random() < 0.5:
+                d = max(1, width)
+                draw.ellipse((mx - d, my - d, mx + d, my + d), fill=fill)
+            else:
+                draw.arc((mx - xh * 0.5, my - xh * 0.4, mx + xh * 0.5, my + xh * 0.4),
+                         200, 340, fill=fill, width=width)
+        x = cx + xh * rng.uniform(1.2, 1.9)
+        words += 1
+        if max_words is not None and words >= max_words:
+            break
+    return x
+
+
+def _codex_numeral_advance(digit: int, size: float) -> float:
+    """Horizontal advance of one numeral: zero's bare ring is narrower."""
+    return size * (0.85 if digit == 0 else 0.95)
+
+
+def _codex_numeral(draw: ImageDraw.ImageDraw, x: float, base: float, digit: int, *,
+                   size: float, fill, width: int = 2) -> float:
+    """One of twenty-one invented digits, drawn from the bits of its value.
+
+    Zero is a bare ring. Every other digit is a curved stem whose features are
+    switched on by its five bits — a top loop, a foot hook, a crossbar, a dot, a
+    tail curl — so the twenty glyphs are pairwise distinct and a given digit is
+    always drawn the same way. Returns the advance.
+    """
+    s = size
+    if digit == 0:
+        draw.ellipse((x, base - s * 0.7, x + s * 0.6, base - s * 0.1), outline=fill, width=width)
+        return _codex_numeral_advance(digit, s)
+    stem = [(x + s * 0.15, base), (x + s * 0.35, base - s * 0.5), (x + s * 0.2, base - s)]
+    draw.line(stem, fill=fill, width=width, joint="curve")
+    if digit & 1:
+        draw.arc((x + s * 0.1, base - s * 1.15, x + s * 0.55, base - s * 0.75), 90, 450, fill=fill, width=width)
+    if digit & 2:
+        draw.arc((x - s * 0.1, base - s * 0.3, x + s * 0.35, base + s * 0.1), 0, 180, fill=fill, width=width)
+    if digit & 4:
+        draw.line((x, base - s * 0.55, x + s * 0.6, base - s * 0.45), fill=fill, width=width)
+    if digit & 8:
+        d = width + 0.5
+        cx, cy = x + s * 0.6, base - s * 0.85
+        draw.ellipse((cx - d, cy - d, cx + d, cy + d), fill=fill)
+    if digit & 16:
+        draw.arc((x + s * 0.25, base - s * 0.35, x + s * 0.75, base + s * 0.05), 270, 90, fill=fill, width=width)
+    return _codex_numeral_advance(digit, s)
+
+
+def codex_page_digits(time_str: str) -> list[int]:
+    """The minute of the day as base-21 digits, most significant first."""
+    hh, mm = (int(p) for p in time_str.split(":"))
+    value = hh * 60 + mm
+    digits = []
+    while True:
+        digits.append(value % _CODEX_NUMERAL_BASE)
+        value //= _CODEX_NUMERAL_BASE
+        if not value:
+            break
+    return digits[::-1]
+
+
+def _codex_ellipse_poly(cx: float, cy: float, a: float, b: float, angle: float, n: int = 28) -> list:
+    """A rotated ellipse as a polygon (PIL's ``ellipse`` cannot rotate)."""
+    ca, sa = math.cos(angle), math.sin(angle)
+    return [
+        (cx + a * math.cos(t) * ca - b * math.sin(t) * sa,
+         cy + a * math.cos(t) * sa + b * math.sin(t) * ca)
+        for t in (2 * math.pi * i / n for i in range(n))
+    ]
+
+
+def _codex_fill(image: Image.Image, polygon: list, spec: tuple, outline=SPECTRA6["black"], width: int = 1) -> None:
+    """Fill with a documented recipe, then ink the contour — coloured pencil
+    inside a pen line, the way every plate in the book is drawn."""
+    _vitrail_fill_polygon(image, polygon, spec)
+    if outline is not None:
+        ImageDraw.Draw(image).line(list(polygon) + [polygon[0]], fill=outline, width=width, joint="curve")
+
+
+def _codex_stem_point(t: float) -> tuple[float, float]:
+    """The stem's centreline: a gentle quadratic S from root to crown."""
+    (x0, y0), (x1, y1) = _CODEX_STEM_BASE, _CODEX_STEM_TOP
+    cx = x0 + 34
+    x = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t * t * x1
+    y = y0 + (y1 - y0) * t
+    return x, y
+
+
+def _codex_fill_mask(image: Image.Image, mask: Image.Image, spec: tuple) -> None:
+    """Paint every set pixel of a ``1`` mask with a recipe, in place.
+
+    Drawing a shape into a private mask and filling through it is how the
+    roots get their R+G sepia without a red sentinel: a post-pass that flips
+    "any red pixel in this box" would also recolour anything red a later
+    change happened to paint there.
+    """
+    bbox = mask.getbbox()
+    if bbox is None:
+        return
+    mpx, ipx = mask.load(), image.load()
+    for y in range(bbox[1], bbox[3]):
+        for x in range(bbox[0], bbox[2]):
+            if mpx[x, y]:
+                ipx[x, y] = _vitrail_pane_ink(x, y, spec)
+
+
+def _codex_paint_roots(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random):
+    """Sepia roots below a green-hatched ground line, each curling into a
+    spiral. Returns the roots' ink bbox, so the caption can be kept clear of it.
+    """
+    bx, by = _CODEX_STEM_BASE
+    # Ground: short green hatching, the mound the specimen stands on.
+    for i in range(-70, 72, 5):
+        h = 3 + int(4 * math.cos(i / 70 * math.pi / 2))
+        draw.line((bx + i, by + 2, bx + i + 3, by + 2 - h), fill=SPECTRA6["green"], width=1)
+    draw.line((bx - 78, by + 3, bx + 80, by + 3), fill=SPECTRA6["black"], width=1)
+    mask = Image.new("1", image.size, 0)
+    mdraw = ImageDraw.Draw(mask)
+    for k, dx in enumerate((-46, -20, 6, 30, 52)):
+        pts = [(bx + dx * 0.2, by + 4)]
+        x, y = bx + dx * 0.2, by + 4
+        for _ in range(8):
+            x += dx * 0.12 + rng.uniform(-2, 2)
+            y += 4.2
+            pts.append((x, y))
+        # Spiral terminal: the root keeps curling the way it was heading. The
+        # centre sits on the curl side, so the spiral starts at the root's tip
+        # (angle pi from a centre to its right, 0 from one to its left) and
+        # winds inward.
+        curl = 1 if dx > 0 else -1
+        r = 5 + k % 3
+        ox, oy = x + curl * r, y
+        start = math.pi if curl > 0 else 0.0
+        for j in range(1, 16):
+            a = start - curl * j * 0.55
+            rr = r * (1 - j / 18)
+            pts.append((ox + rr * math.cos(a), oy + rr * math.sin(a)))
+        mdraw.line(pts, fill=1, width=3, joint="curve")
+    bbox = mask.getbbox()
+    _codex_fill_mask(image, mask, _CODEX_SEPIA)
+    mask.close()
+    return bbox
+
+
+def _codex_paint_stem(image: Image.Image, draw: ImageDraw.ImageDraw, band_offset: int) -> None:
+    """A tapering stem banded through the spectrum, inked on both flanks."""
+    n = 22
+    left, right = [], []
+    samples = []
+    for i in range(n + 1):
+        t = i / n
+        x, y = _codex_stem_point(t)
+        hw = 9 - 5 * t
+        samples.append((x, y, hw))
+    for i in range(n):
+        xa, ya, ha = samples[i]
+        xb, yb, hb = samples[i + 1]
+        band = (xa - ha, ya), (xa + ha, ya), (xb + hb, yb), (xb - hb, yb)
+        _vitrail_fill_polygon(image, list(band), _CODEX_BANDS[(i + band_offset) % len(_CODEX_BANDS)])
+        draw.line((xb - hb, yb, xb + hb, yb), fill=SPECTRA6["black"], width=1)
+        left.append((xa - ha, ya))
+        right.append((xa + ha, ya))
+    left.append((samples[-1][0] - samples[-1][2], samples[-1][1]))
+    right.append((samples[-1][0] + samples[-1][2], samples[-1][1]))
+    draw.line(left, fill=SPECTRA6["black"], width=2, joint="curve")
+    draw.line(right, fill=SPECTRA6["black"], width=2, joint="curve")
+
+
+def _codex_paint_fish_leaf(image: Image.Image, draw: ImageDraw.ImageDraw, ax: float, ay: float,
+                           side: int, spec: tuple, size: float) -> tuple[float, float]:
+    """A leaf that is a fish: body, forked tail at the stem, scales, one eye.
+
+    The tail is the petiole — the fish grows out of the stem nose-first — which
+    is the Serafinian move: a familiar form (a leaf) that turns out, on a second
+    look, to be a different familiar form entirely.
+
+    Returns the tip of the nose, so the plate's dotted leaders can point at it
+    without re-deriving the leaf geometry.
+    """
+    angle = -0.5 if side > 0 else math.pi + 0.5
+    ca, sa = math.cos(angle), math.sin(angle)
+
+    def rot(u: float, v: float) -> tuple[float, float]:
+        return ax + u * ca - v * sa, ay + u * sa + v * ca
+
+    a, b = size, size * 0.42
+    tail_root = 10
+    tail = [rot(tail_root + 2, 0), rot(0, -b * 0.8), rot(4, 0), rot(0, b * 0.8)]
+    _codex_fill(image, tail, _CODEX_TANGERINE)
+    cx = tail_root + a
+    body = [rot(cx + a * math.cos(t), b * math.sin(t) * (0.75 + 0.25 * math.cos(t)))
+            for t in (2 * math.pi * i / 30 for i in range(30))]
+    _codex_fill(image, body, spec, width=2)
+    # Scale arcs: rows of small blue crescents along the flank.
+    for row in (-0.3, 0.2):
+        for k in range(3):
+            u = cx - a * 0.55 + k * a * 0.36
+            sx, sy = rot(u, row * b)
+            draw.arc((sx - 4, sy - 4, sx + 4, sy + 4), 0, 180, fill=SPECTRA6["blue"], width=1)
+    # Gill line and eye near the nose.
+    gx0, gy0 = rot(cx + a * 0.35, -b * 0.6)
+    gx1, gy1 = rot(cx + a * 0.42, b * 0.6)
+    draw.line((gx0, gy0, gx1, gy1), fill=SPECTRA6["black"], width=1)
+    ex, ey = rot(cx + a * 0.62, -b * 0.15)
+    draw.ellipse((ex - 3.5, ey - 3.5, ex + 3.5, ey + 3.5), fill=SPECTRA6["white"], outline=SPECTRA6["black"])
+    draw.ellipse((ex - 1.5, ey - 1.5, ex + 1.5, ey + 1.5), fill=SPECTRA6["black"])
+    # A dorsal fin, red, on the upper flank.
+    fin = [rot(cx - a * 0.3, -b * 0.9), rot(cx - a * 0.05, -b * 1.55), rot(cx + a * 0.2, -b * 0.95)]
+    _codex_fill(image, fin, ("solid", SPECTRA6["red"]))
+    return rot(cx + a, 0)
+
+
+def _codex_paint_blossom(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """A corolla of alternating rose and violet petals round an open eye."""
+    cx, cy = _CODEX_STEM_TOP[0], _CODEX_STEM_TOP[1] - 36
+    petals = rng.choice((8, 9, 10, 11))
+    phase = rng.uniform(0, math.pi)
+    for i in range(petals):
+        a = phase + 2 * math.pi * i / petals
+        px_, py_ = cx + 34 * math.cos(a), cy + 34 * math.sin(a)
+        _codex_fill(image, _codex_ellipse_poly(px_, py_, 26, 11, a), _CODEX_PETAL_FILLS[i % 2], width=2)
+    # Inner tangerine ring of sepals.
+    for i in range(petals):
+        a = phase + math.pi / petals + 2 * math.pi * i / petals
+        px_, py_ = cx + 20 * math.cos(a), cy + 20 * math.sin(a)
+        _codex_fill(image, _codex_ellipse_poly(px_, py_, 11, 5, a, 16), _CODEX_TANGERINE)
+    # The eye: an almond of white sclera, a blue iris, a black pupil, a glint.
+    almond = [(cx - 24 + 48 * t, cy - 14 * math.sin(math.pi * t)) for t in (i / 16 for i in range(17))]
+    almond += [(cx + 24 - 48 * t, cy + 12 * math.sin(math.pi * t)) for t in (i / 16 for i in range(1, 16))]
+    _codex_fill(image, almond, ("solid", SPECTRA6["white"]), width=2)
+    draw.ellipse((cx - 10, cy - 10, cx + 10, cy + 10), fill=SPECTRA6["blue"], outline=SPECTRA6["black"])
+    draw.ellipse((cx - 4, cy - 4, cx + 4, cy + 4), fill=SPECTRA6["black"])
+    draw.rectangle((cx - 6, cy - 7, cx - 4, cy - 5), fill=SPECTRA6["white"])
+    # Lashes along the upper lid.
+    for t in (0.18, 0.34, 0.5, 0.66, 0.82):
+        x = cx - 24 + 48 * t
+        y = cy - 14 * math.sin(math.pi * t)
+        dx = (t - 0.5) * 10
+        draw.line((x, y, x + dx, y - 6), fill=SPECTRA6["black"], width=1)
+
+
+def _codex_paint_seeds(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """Striped seeds drifting off the crown on thread parachutes."""
+    cx, cy = _CODEX_STEM_TOP[0], _CODEX_STEM_TOP[1] - 36
+    for k in range(3):
+        sx = cx + 70 + k * 28 + rng.uniform(-6, 6)
+        sy = cy - 40 + k * 26 + rng.uniform(-6, 6)
+        seed = _codex_ellipse_poly(sx, sy, 7, 4, 1.1)
+        _codex_fill(image, seed, _CODEX_BANDS[(k * 2 + 1) % len(_CODEX_BANDS)])
+        top = (sx - 5, sy - 14)
+        for spread in (-8, -3, 3, 8):
+            draw.line((sx - 1, sy - 3, top[0] + spread, top[1]), fill=SPECTRA6["black"], width=1)
+        draw.arc((top[0] - 10, top[1] - 6, top[0] + 10, top[1] + 6), 180, 360, fill=SPECTRA6["black"], width=1)
+
+
+def _codex_paint_labels(draw: ImageDraw.ImageDraw, rng: random.Random, anchors: list) -> None:
+    """Dotted leaders from the specimen's parts to asemic labels — the
+    diagrammatic apparatus of an encyclopedia plate, captioned in a script
+    nobody can read."""
+    x_label = _CODEX_PLATE[2] - 58
+    for ax, ay in anchors:
+        y = ay
+        x = ax + 5
+        while x < x_label - 6:
+            draw.point((x, y), fill=SPECTRA6["black"])
+            x += 3
+        _codex_script(draw, x_label, y + 3, _CODEX_PLATE[2], xh=4, rng=rng,
+                      fill=SPECTRA6["black"], max_words=1)
+
+
+def _codex_paint_plate(image: Image.Image, rng: random.Random) -> None:
+    draw = ImageDraw.Draw(image)
+    _codex_paint_roots(image, draw, rng)
+    band_offset = rng.randrange(len(_CODEX_BANDS))
+    _codex_paint_stem(image, draw, band_offset)
+    leaf_ts = (0.18, 0.38, 0.58, 0.76)
+    anchors = []
+    for i, t in enumerate(leaf_ts):
+        x, y = _codex_stem_point(t)
+        side = 1 if i % 2 == 0 else -1
+        spec = _CODEX_LEAF_FILLS[(i + band_offset) % len(_CODEX_LEAF_FILLS)]
+        nose = _codex_paint_fish_leaf(image, draw, x + side * (8 - 5 * t), y, side, spec, 32 - 6 * t)
+        if side > 0:
+            anchors.append(nose)
+    _codex_paint_blossom(image, draw, rng)
+    _codex_paint_seeds(image, draw, rng)
+    _codex_paint_labels(draw, rng, anchors)
+    # Plate caption under the specimen, in the script.
+    _codex_script(draw, _CODEX_PLATE[0] + 40, _CODEX_CAPTION_BASE, _CODEX_PLATE[2] - 40,
+                  xh=_CODEX_BODY_XH, rng=rng, fill=SPECTRA6["black"])
+
+
+def _codex_paint_rainbow(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """A small rainbow beside the rubric heading, one foot dripping its bands
+    into a puddle — a Serafinian object, familiar and then not."""
+    cx, cy = _CODEX_RAINBOW_CENTRE
+    inks = (SPECTRA6["red"], SPECTRA6["yellow"], SPECTRA6["green"], SPECTRA6["blue"])
+    r = 40
+    for ink in inks:
+        draw.arc((cx - r, cy - r, cx + r, cy + r), 180, 360, fill=ink, width=5)
+        r -= 5
+    draw.arc((cx - 41, cy - 41, cx + 41, cy + 41), 180, 360, fill=SPECTRA6["black"], width=1)
+    draw.arc((cx - 20, cy - 20, cx + 20, cy + 20), 180, 360, fill=SPECTRA6["black"], width=1)
+    # The right foot runs: each band drips straight down into a puddle.
+    for k, ink in enumerate(inks):
+        x = cx + 38 - k * 5
+        drop = 10 + (k * 7) % 12
+        draw.line((x, cy, x, cy + drop), fill=ink, width=4)
+        draw.ellipse((x - 2, cy + drop - 1, x + 2, cy + drop + 4), fill=ink)
+    puddle = _codex_ellipse_poly(cx + 30, cy + 30, 16, 4, 0.0, 20)
+    _codex_fill(image, puddle, _CODEX_BANDS[5])
+    # The left foot is a pinned tab of paper: the rainbow is tacked to the page.
+    draw.ellipse((cx - 42, cy - 3, cx - 34, cy + 5), fill=SPECTRA6["red"], outline=SPECTRA6["black"])
+
+
+def _codex_paint_column(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """The untranslated text: a red rubric heading and a paragraph of script
+    above the quote, and a further paragraph below it."""
+    x0, x1 = _CODEX_COLUMN
+    heading_base, heading_xh = _CODEX_HEADING
+    _codex_script(draw, x0 + 30, heading_base, x1 - 30, xh=heading_xh, rng=rng,
+                  fill=SPECTRA6["red"], width=2, max_words=4)
+    for i, base in enumerate(_CODEX_UPPER_LINES):
+        # The first two lines stop short of the rainbow vignette.
+        end = _CODEX_RAINBOW_CENTRE[0] - 58 if i < 2 else x0 + (x1 - x0) * rng.uniform(0.45, 0.8)
+        _codex_script(draw, x0 + (18 if i == 0 else 0), base, end, xh=_CODEX_BODY_XH, rng=rng,
+                      fill=SPECTRA6["black"])
+    for i, base in enumerate(_CODEX_LOWER_LINES):
+        end = x1 if i == 0 else x0 + (x1 - x0) * rng.uniform(0.4, 0.7)
+        _codex_script(draw, x0, base, end, xh=_CODEX_BODY_XH, rng=rng, fill=SPECTRA6["black"])
+
+
+def _codex_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The one deciphered passage, in a pen hand, bracketed by blue rules."""
+    x0, y0, x1, y1 = _CODEX_QUOTE_RECT
+    quote = normalize_dashes(strip_underscore_emphasis(quote_row.get("display_quote") or ""))
+    regular, italic, lines, line_height, size = fit_quote(
+        draw, quote, quote_row.get("matched_text") or "", x1 - x0 - 16, y1 - y0 - 38,
+        38, 15, 1.2, theme="codex",
+    )
+    block = len(lines) * line_height
+    top = y0 + max(0, (y1 - y0 - 30 - block) // 2)
+    draw_centred_styled_lines(draw, lines, x0=x0, x1=x1, top=top, line_height=line_height,
+                              regular=regular, bold=italic, fill=SPECTRA6["black"],
+                              accent=SPECTRA6["red"], min_inset=8)
+    rule_y = top + block + 8
+    mid = (x0 + x1) // 2
+    draw.line((mid - 60, rule_y, mid + 60, rule_y), fill=SPECTRA6["blue"], width=1)
+    draw.polygon([(mid, rule_y - 4), (mid + 4, rule_y), (mid, rule_y + 4), (mid - 4, rule_y)],
+                 fill=SPECTRA6["red"])
+    # Scaled with the body and clamped, so a dense quote fitted near the 15 pt
+    # floor keeps its attribution visibly subordinate rather than meeting a
+    # fixed 14 pt byline almost at body size.
+    byline = load_font(theme_font_candidates("codex", "quote_bold"),
+                       max(_CODEX_BYLINE_MIN, min(_CODEX_BYLINE_MAX, int(size * 0.55))))
+    draw_truncated_centred_byline(draw, quote_row, centre=mid, baseline=rule_y + 22,
+                                  max_width=x1 - x0 - 16, font=byline, fill=SPECTRA6["blue"])
+
+
+def _codex_paint_folio(draw: ImageDraw.ImageDraw, time_str: str) -> float:
+    """The page number, bottom outer corner, in base-21 Serafinian numerals
+    between two small flourishes. Returns where the pen stopped after the last
+    digit, which is the column's right edge whatever digits the time needs."""
+    digits = codex_page_digits(time_str)
+    size = 20
+    total = sum(_codex_numeral_advance(d, size) for d in digits)
+    x = _CODEX_COLUMN[1] - total
+    base = 462
+    draw.arc((x - 24, base - 10, x - 6, base + 2), 200, 360, fill=SPECTRA6["blue"], width=1)
+    for d in digits:
+        x += _codex_numeral(draw, x, base, d, size=size, fill=SPECTRA6["red"])
+    draw.arc((x + 2, base - 10, x + 20, base + 2), 180, 340, fill=SPECTRA6["blue"], width=1)
+    return x
+
+
+def render_codex_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """A page of the Codex Seraphinianus (see the module section comment above)."""
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["white"])
+    _codex_paint_page(image)
+    rng = random.Random(_row_digest(quote_row))
+    _codex_paint_plate(image, rng)
+    draw = ImageDraw.Draw(image)
+    _codex_paint_column(image, draw, rng)
+    _codex_paint_rainbow(image, draw)
+    _codex_paint_quote(image, draw, quote_row)
+    _codex_paint_folio(draw, time_str)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+
+# ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
 # ---------------------------------------------------------------------------
 # The most on-brand object in the rotation: the one theme that is *about books
@@ -28904,6 +29527,8 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_trisolaris_frame(time_str, quote_row, width, height)
     if theme == "biomech":
         return render_biomech_frame(time_str, quote_row, width, height)
+    if theme == "codex":
+        return render_codex_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)
