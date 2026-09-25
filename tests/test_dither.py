@@ -129,19 +129,20 @@ def _plate_row():
 
 
 class TestPlateThemeRender:
-    @pytest.mark.parametrize("theme", ["grimdark", "letter"])
+    @pytest.mark.parametrize("theme", ["grimdark", "letter", "control"])
     @pytest.mark.parametrize("mode", ["production", "debug"])
     def test_renders_on_palette(self, theme, mode):
         img = rq.render("02:30", _plate_row(), 800, 480, mode=mode, theme=theme)
         assert img.size == (800, 480)
         assert distinct_inks(img) <= set(rq.SPECTRA6_PALETTE)
 
-    @pytest.mark.parametrize("theme", ["grimdark", "letter"])
+    @pytest.mark.parametrize("theme", ["grimdark", "letter", "control"])
     def test_small_preview_size_does_not_crash(self, theme):
         img = rq.render("02:30", _plate_row(), 400, 240, mode="production", theme=theme)
         assert img.size == (400, 240)
 
-    @pytest.mark.parametrize("theme,const", [("grimdark", "GRIMDARK_PLATE"), ("letter", "LETTER_PLATE")])
+    @pytest.mark.parametrize("theme,const", [("grimdark", "GRIMDARK_PLATE"), ("letter", "LETTER_PLATE"),
+                                             ("control", "CONTROL_PLATE")])
     def test_missing_plate_falls_back_to_primitive_painter(self, theme, const, tmp_path, monkeypatch):
         # Point the plate constant at a missing path: _load_dithered_plate
         # returns None and the theme must still render on-palette via its

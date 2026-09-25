@@ -3903,10 +3903,12 @@ class TestControlFrame:
         assert "control" in rq.THEME_ORDER
         assert "control" not in rq.CYCLE_EXCLUDED_THEMES
         assert display_inky.THEME_SATURATION["control"] == 0.5
-        # The title-card face: Antonio pinned to Bold for the body as well as
+        # The title-card face: Oswald pinned to Bold for the body as well as
         # the phrase — the phrase earns its step from the Hiss red, not weight.
         for role in ("quote_regular", "quote_bold"):
-            assert rq.theme_font_candidates("control", role)[0] == (rq.ANTONIO_VARIABLE, "Bold")
+            assert rq.theme_font_candidates("control", role)[0] == (rq.OSWALD_VARIABLE, "Bold")
+        assert pathlib.Path(rq.OSWALD_VARIABLE).exists()
+        assert (pathlib.Path(rq.OSWALD_VARIABLE).parent / "OFL.txt").exists()
 
     def test_time_never_reaches_the_frame(self):
         """The Astral Plane has no clock: the matched phrase carries the time,
@@ -3922,12 +3924,16 @@ class TestControlFrame:
 
     def test_only_the_hiss_is_chromatic(self):
         """Everything but the matched phrase — void, blocks, Board, plinth,
-        sign — is achromatic: red appears only inside the quote rect, and a
-        row with no matched phrase paints no red at all."""
+        sign — is achromatic: red appears only inside the quote rect (grown by
+        the bloom's reach and the resonance shift, which can spill past a rect
+        edge the phrase sits against), and a row with no matched phrase paints
+        no red at all."""
         red = rq.SPECTRA6["red"]
         image = self._render()
         assert ink_counts(image).get(red, 0) > 0
         x0, y0, x1, y1 = rq._CONTROL_QUOTE_RECT
+        reach = 3 * rq._CONTROL_HISS_RADIUS + max(abs(s) for _, _, s in rq._CONTROL_RESONANCE)
+        x0, y0, x1, y1 = x0 - reach, y0 - reach, x1 + reach, y1 + reach
         px = image.load()
         stray = [
             (x, y) for y in range(480) for x in range(800)
@@ -4029,3 +4035,49 @@ class TestControlFrame:
         assert all(px[x, y] == rq.SPECTRA6["white"] for y in range(0, top - 1, 7) for x in range(0, 800, 7))
         band = sum(px[x, y] == rq.SPECTRA6["black"] for y in range(top, 480) for x in range(800))
         assert band > 0.3 * (480 - top) * 800
+
+    def test_resonance_echoes_the_phrase_without_cutting_it(self, monkeypatch):
+        """The Hiss tearing is an echo, never a displacement: with the
+        resonance bands disabled the frame loses red only, and every red
+        pixel the bands add sits on what was white — no glyph of the phrase,
+        no prose and no bloom pixel is moved or overwritten."""
+        red = rq.SPECTRA6["red"]
+        with_bands = self._render()
+        monkeypatch.setattr(rq, "_CONTROL_RESONANCE", ())
+        without = self._render()
+        a, b = with_bands.load(), without.load()
+        added = lost = 0
+        for y in range(480):
+            for x in range(800):
+                if a[x, y] != b[x, y]:
+                    assert b[x, y] == rq.SPECTRA6["white"] and a[x, y] == red, (x, y, a[x, y], b[x, y])
+                    added += 1
+                if b[x, y] != rq.SPECTRA6["white"] and a[x, y] != b[x, y]:
+                    lost += 1
+        assert added > 0 and lost == 0
+
+    def test_plinth_prefers_the_concrete_plate_and_falls_back(self, tmp_path, monkeypatch):
+        """The plinth is the committed board-formed plate dithered to K+W;
+        with the asset missing it degrades to the jittered stipple, and both
+        paint an achromatic band of comparable darkness."""
+        assert rq.CONTROL_PLATE.exists()
+        with Image.open(rq.CONTROL_PLATE) as plate:
+            assert plate.size == (800, 480 - rq._CONTROL_PLINTH_Y)
+
+        def band_share(image):
+            px = image.load()
+            top = rq._CONTROL_PLINTH_Y
+            black = sum(px[x, y] == rq.SPECTRA6["black"] for y in range(top + 3, 480) for x in range(800))
+            assert distinct_inks(image.crop((0, top, 800, 480))) <= {rq.SPECTRA6["black"], rq.SPECTRA6["white"]}
+            return black / ((480 - top - 3) * 800)
+
+        def plinth_only():
+            image = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+            rq._control_paint_plinth(image, ImageDraw.Draw(image))
+            return image
+
+        plated = band_share(plinth_only())
+        monkeypatch.setattr(rq, "CONTROL_PLATE", tmp_path / "missing.png")
+        fallback = band_share(plinth_only())
+        assert 0.25 < plated < 0.6
+        assert 0.25 < fallback < 0.6

@@ -1808,6 +1808,10 @@ SHOJUMARU_REGULAR = str(BASE_DIR / "fonts/shojumaru/Shojumaru-Regular.ttf")
 # install lands on a heavy sans silhouette rather than dropping the
 # LCARS theme onto an elegant transitional serif.
 ANTONIO_VARIABLE = str(BASE_DIR / "fonts/antonio/Antonio-Variable.ttf")
+# Oswald (Vernon Adams / Kalapi Gajjar / Cyreal, OFL) — the free stand-in for
+# the heavy condensed grotesque of *Control*'s title cards; variable Weight
+# axis with ExtraLight..Bold named instances. Used by ``control``.
+OSWALD_VARIABLE = str(BASE_DIR / "fonts/oswald/Oswald-Variable.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3466,23 +3470,27 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         ],
     },
     "control": {
-        # Antonio — the tall condensed grotesque of the game's title cards,
+        # Oswald — the free stand-in for the heavy condensed grotesque of the
+        # game's title cards (Univers / Helvetica Neue Condensed territory),
         # pinned to Bold for the body as well as the phrase: a title card is
         # heavy by definition, and the phrase earns its step from the Hiss red
         # and its bloom rather than from weight (the comic / dispatch
-        # discipline). Antonio's first outing as a body face was ``vhs``; a
-        # black tape and a white void are in no danger of being confused.
+        # discipline). Antonio, the earlier stand-in, is the next fallback so
+        # a stripped install still lands on a condensed silhouette.
         "quote_regular": [
+            (OSWALD_VARIABLE, "Bold"),
             (ANTONIO_VARIABLE, "Bold"),
             "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
             *QUOTE_FONT_BOLD_CANDIDATES,
         ],
         "quote_bold": [
+            (OSWALD_VARIABLE, "Bold"),
             (ANTONIO_VARIABLE, "Bold"),
             "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
             *QUOTE_FONT_BOLD_CANDIDATES,
         ],
         "ornament": [
+            (OSWALD_VARIABLE, "Bold"),
             (ANTONIO_VARIABLE, "Bold"),
             *ORNAMENT_FONT_CANDIDATES,
         ],
@@ -15192,6 +15200,10 @@ _CYANOTYPE_PALETTE = [SPECTRA6["white"], SPECTRA6["black"], SPECTRA6["blue"]]
 # pure with no stray chroma scattering into the deep void. The gold/blood trim,
 # Aquila, and cog-skull paint as primitives on top.
 GRIMDARK_PLATE = BASE_DIR / "assets" / "grimdark_gunmetal.png"
+# control: board-formed concrete for the plinth, dithered to white+black at
+# render time (scripts/generate_control_plate.py). 800x88, the plinth band.
+CONTROL_PLATE = BASE_DIR / "assets" / "control_concrete.png"
+_CONCRETE_PALETTE = [SPECTRA6["white"], SPECTRA6["black"]]
 _GUNMETAL_PALETTE = [SPECTRA6["white"], SPECTRA6["black"]]
 
 # The letter aged-paper plate dithers to white/yellow/red/green: cream paper as
@@ -23903,6 +23915,12 @@ _CONTROL_HISS_RADIUS = 6
 _CONTROL_HISS_CAP = 0.62
 _CONTROL_HISS_GAMMA = 1.6
 _CONTROL_TRACKING = 2
+# Hiss resonance: thin horizontal bands of the phrase echoed sideways as a
+# half-density red stipple — (band top as a fraction of the phrase height,
+# band height in px, horizontal shift in px). Echoes only, never moves:
+# the phrase itself stays whole so the time stays legible.
+_CONTROL_RESONANCE = ((0.18, 3, 9), (0.47, 2, -7), (0.74, 3, 6))
+_CONTROL_RESONANCE_DENSITY = 0.5
 
 
 def _control_fill_polygon(image: Image.Image, polygon, density: float) -> None:
@@ -23985,17 +24003,16 @@ def _control_paint_board(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
     draw.line([(cx, ay), (cx, cy)], fill=SPECTRA6["black"], width=2)
 
 
-def _control_paint_plinth(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
-    """The Oldest House: a band of poured concrete across the foot of the page.
+def _control_paint_concrete_stipple(image: Image.Image, top: int) -> None:
+    """Fallback plinth texture when the concrete plate asset is missing.
 
     Hash-jittered ordered dither (the ``bakelite`` moulding recipe) at a
-    density that deepens toward the bottom edge, with formwork seams and a row
-    of tie-holes so it reads as cast concrete and not as a grey strip.
+    density that deepens toward the bottom edge. Reads as cast stone at a
+    glance; the committed plate carries the board grain this cannot.
     """
     width, height = image.size
     px = image.load()
     black = SPECTRA6["black"]
-    top = _CONTROL_PLINTH_Y
     span = max(1, height - top)
     d0, d1 = _CONTROL_CONCRETE
     jitter = _CONTROL_CONCRETE_JITTER
@@ -24006,6 +24023,28 @@ def _control_paint_plinth(image: Image.Image, draw: ImageDraw.ImageDraw) -> None
             rank = row[x % 8] + (position_noise(x, y) % (2 * jitter + 1)) - jitter
             if rank < cut:
                 px[x, y] = black
+
+
+def _control_paint_plinth(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """The Oldest House: a band of board-formed concrete across the foot.
+
+    Prefers the committed continuous-tone plate (``CONTROL_PLATE``), dithered
+    to white+black at render time so the timber grain of the shuttering, the
+    tonal step between formwork panels and the aggregate pits all survive as
+    local stipple density — the ``grimdark`` / ``letter`` plate capability.
+    Falls back to the jittered stipple when the asset is missing. Formwork
+    seams and a row of tie-holes go on top in either case: without them a
+    grey band is just a grey band.
+    """
+    width, height = image.size
+    black = SPECTRA6["black"]
+    top = _CONTROL_PLINTH_Y
+    if height > top:
+        plate = _load_dithered_plate(CONTROL_PLATE, width, height - top, palette=_CONCRETE_PALETTE)
+        if plate is not None:
+            image.paste(plate, (0, top))
+        else:
+            _control_paint_concrete_stipple(image, top)
     draw.line([(0, top), (width, top)], fill=black, width=2)
     for sx in _CONTROL_SEAMS_X:
         draw.line([(sx, top), (sx, height)], fill=black, width=1)
@@ -24062,13 +24101,13 @@ def _control_paint_sign(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row
     white = SPECTRA6["white"]
     draw.rectangle((x0, y0, x1, y1), fill=SPECTRA6["black"])
     _control_paint_seal(draw)
-    name_font = load_font([(ANTONIO_VARIABLE, "Bold"), *META_FONT_BOLD_CANDIDATES], size=17)
-    sub_font = load_font([(ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=10)
+    name_font = load_font([(OSWALD_VARIABLE, "Bold"), (ANTONIO_VARIABLE, "Bold"), *META_FONT_BOLD_CANDIDATES], size=17)
+    sub_font = load_font([(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=10)
     text_x = _CONTROL_SEAL_CENTRE[0] + _CONTROL_SEAL_RADIUS + 12
     _control_draw_tracked(draw, (text_x, y0 + 5), "FEDERAL BUREAU OF CONTROL", name_font, white)
     _control_draw_tracked(draw, (text_x, y0 + 29), "THE OLDEST HOUSE", sub_font, white, tracking=3)
 
-    credit_font = load_font([(ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=12)
+    credit_font = load_font([(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=12)
     right = x1 - 14
     limit = right - (text_x + 250)
     lines = _control_board_lines(quote_row)
@@ -24078,6 +24117,38 @@ def _control_paint_sign(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row
             text = text[:-1].rstrip()
         _control_draw_tracked(draw, (right, y), text, credit_font, white, tracking=1, anchor_right=True)
         y += 17
+
+
+def _control_paint_resonance(image: Image.Image, hot: Image.Image) -> None:
+    """The Hiss's signal tearing: a few thin bands of the matched phrase echoed
+    sideways as a half-density red stipple.
+
+    An *echo*, not a tear — the ``vhs`` lesson in the other direction. Moving
+    the band would cut the time phrase, which is the clock's whole job; an
+    echo painted only onto white beside the intact phrase reads as the
+    resonance the game overlays on corrupted text while every glyph stays
+    whole. ``ground``-style: only white pixels are written, so the echo can
+    never overwrite prose, the phrase or its bloom.
+    """
+    bbox = hot.getbbox()
+    if bbox is None:
+        return
+    x0, y0, x1, y1 = bbox
+    span = y1 - y0
+    width, height = image.size
+    hp, px = hot.load(), image.load()
+    red, white = SPECTRA6["red"], SPECTRA6["white"]
+    cut = _CONTROL_RESONANCE_DENSITY * 64
+    for frac, band_h, shift in _CONTROL_RESONANCE:
+        by0 = y0 + int(frac * span)
+        for y in range(by0, min(height, by0 + band_h)):
+            row = BAYER_8x8[y % 8]
+            for x in range(x0, x1):
+                if hp[x, y] <= 128:
+                    continue
+                tx = x + shift
+                if 0 <= tx < width and px[tx, y] == white and row[tx % 8] < cut:
+                    px[tx, y] = red
 
 
 def _control_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
@@ -24096,6 +24167,7 @@ def _control_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_ro
         radius=_CONTROL_HISS_RADIUS, gamma=_CONTROL_HISS_GAMMA, cap=_CONTROL_HISS_CAP,
         ground=frozenset({SPECTRA6["white"]}), tile=BAYER_8x8,
     )
+    _control_paint_resonance(image, hot)
     prose.close()
     hot.close()
 
