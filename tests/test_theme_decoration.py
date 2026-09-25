@@ -104,6 +104,7 @@ CUSTOM_FRAME_THEMES = (
     "codex",
     "culture",
     "orbital",
+    "furies",
 )
 
 # ``diags`` is the developer swatch panel, not a literary theme: it paints its
