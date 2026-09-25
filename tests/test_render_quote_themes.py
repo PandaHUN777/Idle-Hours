@@ -24,7 +24,7 @@ import pathlib
 import threading
 
 import pytest
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 from idle_hours import pick_quote as pq
 from idle_hours import render_quote as rq
@@ -1876,7 +1876,7 @@ class TestFixedGeometryFramesDownscale:
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
                              "control", "observation", "trisolaris", "biomech", "codex",
-                             "culture", "orbital", "furies")
+                             "culture", "orbital", "furies", "bosch")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -5393,3 +5393,206 @@ class TestFuriesFrame:
     def test_missing_attribution_renders(self):
         row = {**self.ROW, "author": "", "title": "", "source_id": ""}
         assert distinct_inks(self._render(row)) <= set(rq.SPECTRA6.values())
+
+
+class TestBoschFrame:
+    """``bosch`` — *The Garden of Earthly Delights*, the triptych open.
+
+    Paradise / Garden / Hell, the quote lettered on a banderole across the
+    centre panel, and the whole altarpiece crazed by ``paint_craquelure``.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+    LONG = dict(
+        ROW,
+        display_quote="It was just five minutes to midnight when the last of the carriages rolled "
+                      "away down the long avenue, and the great house, which had blazed with light "
+                      "and music for six hours together, fell dark and silent all at once, as though "
+                      "someone had blown out a candle; and in the silence the old clock in the hall "
+                      "was heard to strike, very faintly, some hour of its own devising.",
+        matched_text="five minutes to midnight",
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestBoschFrame.ROW)),
+                         *size, mode="production", theme="bosch")
+
+    @staticmethod
+    def _lettering(row):
+        """The banderole's text as a mask, laid out exactly as the frame lays it."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["white"])
+        draw = ImageDraw.Draw(image)
+        regular, bold, wrapped, lh, rect = rq._bosch_scroll_layout(draw, make_row(**row))
+        mask = Image.new("L", (800, 480), 0)
+        rq._bosch_draw_lettering(ImageDraw.Draw(mask), regular, bold, wrapped, lh, rect,
+                                 make_row(**row), 255, 255)
+        return mask, rect
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "bosch" in rq.THEMES
+        assert "bosch" in rq.THEME_ORDER
+        assert "bosch" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["bosch"] == 0.5
+        assert rq.theme_font_candidates("bosch", "quote_regular")[0] == (rq.GRENZE_GOTISCH_VARIABLE, "Medium")
+        assert rq.theme_font_candidates("bosch", "quote_bold")[0] == (rq.GRENZE_GOTISCH_VARIABLE, "Bold")
+        font = pathlib.Path(rq.GRENZE_GOTISCH_VARIABLE)
+        assert font.exists() and (font.parent / "OFL.txt").exists()
+
+    def test_grenze_instances_are_pinned(self):
+        """A variable face without its variation call renders its default
+        instance; pin that Medium and Bold really are different weights."""
+        regular = rq.load_font(rq.theme_font_candidates("bosch", "quote_regular"), size=30)
+        bold = rq.load_font(rq.theme_font_candidates("bosch", "quote_bold"), size=30)
+
+        def ink(font):
+            mask = Image.new("L", (400, 80), 0)
+            ImageDraw.Draw(mask).text((4, 4), "Garden of Delights", font=font, fill=255)
+            return mask.point(lambda v: 255 if v > 127 else 0).histogram()[255]
+        assert ink(bold) > ink(regular) * 1.1
+
+    def test_no_clock_reaches_the_frame(self):
+        """An altarpiece carries no hour: ``time_str`` is del-asserted and the
+        matched phrase is the clock, so every time renders byte-identically."""
+        first = pixel_bytes(self._render(time_str="14:30"))
+        for time_str in ("00:00", "03:05", "23:59", "bogus"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_on_palette_deterministic_and_all_six_inks(self):
+        image = self._render()
+        assert distinct_inks(image) == set(rq.SPECTRA6.values())
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    @pytest.mark.parametrize("row_name", ["ROW", "LONG"])
+    def test_cracks_never_cut_the_lettering(self, row_name, monkeypatch):
+        """The craquelure crazes the whole altarpiece, banderole included, but
+        a dilated halo round every glyph is off-limits: the lettering pixels
+        are byte-identical with and without the crack pass."""
+        row = getattr(self, row_name)
+        crazed = self._render(row)
+        monkeypatch.setattr(rq, "paint_craquelure", lambda *a, **k: None)
+        clean = self._render(row)
+        mask, rect = self._lettering(row)
+        guard = mask.filter(ImageFilter.MaxFilter(5))
+        ca, cb, gp = crazed.load(), clean.load(), guard.load()
+        x0, y0, x1, y1 = rect
+        diffs_near_text = diffs_on_scroll = 0
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                if ca[x, y] != cb[x, y]:
+                    if gp[x, y]:
+                        diffs_near_text += 1
+                    else:
+                        diffs_on_scroll += 1
+        assert diffs_near_text == 0
+        assert diffs_on_scroll > 100, "the banderole should be crazed too, away from the letters"
+
+    def test_crack_polarity_follows_the_paint(self):
+        """Grime on light paint, chalk ground through dark paint — and the
+        chalk opens far more sparingly than the grime darkens."""
+        white, black = rq.SPECTRA6["white"], rq.SPECTRA6["black"]
+        image = Image.new("RGB", (400, 200), white)
+        image.paste(black, (200, 0, 400, 200))
+        region = Image.new("L", image.size, 255)
+        painted = rq.paint_craquelure(image, region, seed=7, cell=(24, 14))
+        light_side = ink_counts(image.crop((0, 0, 200, 200))).get(black, 0)
+        dark_side = ink_counts(image.crop((200, 0, 400, 200))).get(white, 0)
+        assert light_side > 800 and dark_side > 50
+        assert dark_side < light_side * 0.4
+        assert ink_counts(painted.convert("RGB")).get((255, 255, 255), 0) == light_side + dark_side
+
+    def test_craquelure_is_confined_seeded_and_kept_out(self):
+        white = rq.SPECTRA6["white"]
+        region = Image.new("L", (300, 200), 0)
+        ImageDraw.Draw(region).rectangle((0, 0, 149, 199), fill=255)
+        keep = Image.new("L", (300, 200), 0)
+        ImageDraw.Draw(keep).rectangle((40, 60, 100, 120), fill=255)
+
+        def run(seed):
+            image = Image.new("RGB", (300, 200), white)
+            painted = rq.paint_craquelure(image, region, seed=seed, keep_out=keep, keep_out_pad=2)
+            return image, painted
+
+        a, painted = run(3)
+        assert painted.crop((150, 0, 300, 200)).getbbox() is None, "cracks escaped the region"
+        assert painted.crop((38, 58, 103, 123)).getbbox() is None, "cracks entered the keep-out"
+        assert painted.crop((0, 0, 150, 200)).getbbox() is not None
+        assert pixel_bytes(a) == pixel_bytes(run(3)[0])
+        assert pixel_bytes(a) != pixel_bytes(run(4)[0])
+
+    def test_wing_tops_are_the_centre_arch_halved_and_mirrored(self):
+        """Closed, each wing covers half the centre; opened, its free edge —
+        the half-arch's apex — swings outermost. So an open wing is high at
+        the outside and low at the hinge, and the centre peaks in the middle."""
+        centre = rq._bosch_arch_tops("garden", 436)
+        assert centre[218] < 1 and centre[0] > rq._BOSCH_ARCH_RISE - 2
+        assert abs(centre[10] - centre[-11]) < 0.01
+        paradise = rq._bosch_arch_tops("paradise", 158)
+        hell = rq._bosch_arch_tops("hell", 158)
+        assert paradise[0] < 1 and paradise[-1] > rq._BOSCH_ARCH_RISE - 2
+        assert hell[-1] < 1 and hell[0] > rq._BOSCH_ARCH_RISE - 2
+        assert all(a >= b for a, b in zip(paradise[1:], paradise)), "paradise should fall toward its hinge"
+
+    def test_banderole_is_sized_to_its_text_and_stays_on_the_centre_panel(self):
+        draw = ImageDraw.Draw(Image.new("RGB", (800, 480)))
+        short = rq._bosch_scroll_layout(draw, make_row(**{**self.ROW, "display_quote": "Twelve o'clock.",
+                                                         "matched_text": "Twelve o'clock"}))[-1]
+        long = rq._bosch_scroll_layout(draw, make_row(**self.LONG))[-1]
+        assert (short[2] - short[0]) < (long[2] - long[0])
+        assert (short[3] - short[1]) < (long[3] - long[1])
+        _, (gx0, gy0, gx1, gy1) = rq._BOSCH_PANELS[1]
+        for x0, y0, x1, y1 in (short, long):
+            assert gx0 < x0 - rq._BOSCH_ROLL_W and x1 + rq._BOSCH_ROLL_W < gx1
+            assert gy0 + rq._BOSCH_ARCH_RISE < y0 and y1 < gy1
+
+    def test_phrase_is_rubricated(self):
+        """The matched phrase is solid red on the banderole, the prose black."""
+        image = self._render()
+        mask, rect = self._lettering(self.ROW)
+        counts = ink_counts(Image.composite(image, Image.new("RGB", image.size, rq.SPECTRA6["white"]),
+                                            mask.point(lambda v: 255 if v > 200 else 0)).crop(rect))
+        assert counts.get(rq.SPECTRA6["red"], 0) > 150
+        assert counts.get(rq.SPECTRA6["black"], 0) > counts.get(rq.SPECTRA6["red"], 0)
+
+    def test_hell_burns_bright(self):
+        """Red over black is the lowest-contrast pair the inks offer, so the
+        fire must be carried by yellow: the blaze band is yellow-dominant."""
+        _, (x0, y0, x1, _) = rq._BOSCH_PANELS[2]
+        counts = ink_counts(self._render().crop((x0 + 4, y0 + 40, x1 - 4, y0 + 110)))
+        assert counts.get(rq.SPECTRA6["yellow"], 0) > counts.get(rq.SPECTRA6["red"], 0)
+        assert counts.get(rq.SPECTRA6["yellow"], 0) > 0.2 * sum(counts.values())
+
+    def test_bare_row_still_renders(self):
+        image = self._render({**self.ROW, "author": "", "title": ""})
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+    def test_rank_field_is_clamped_and_immutable(self):
+        """Every jittered rank lies in 0..63, so a share of 0 paints nothing
+        and a share of 1 paints everything; and the field is a tuple, built
+        once and published whole (preview threads may race to build it)."""
+        field = rq._bosch_rank_field()
+        assert isinstance(field, tuple) and len(field) == 480
+        assert all(len(row) == 800 for row in field)
+        assert min(min(row) for row in field) == 0 and max(max(row) for row in field) == 63
+        white, green = rq.SPECTRA6["white"], rq.SPECTRA6["green"]
+        assert all(rq._bosch_pick(r, ((white, 0.0), (green, 1))) == green for r in range(64))
+
+    def test_parchment_carries_no_stray_red(self):
+        """Red on the banderole belongs to the rubricated phrase alone: with
+        no phrase matched, the scroll's centre band has no red at all."""
+        row = {**self.ROW, "matched_text": "no such phrase"}
+        image = self._render(row)
+        _, rect = self._lettering(row)
+        x0, y0, x1, y1 = rect
+        mid = (y0 + y1) // 2
+        band = image.crop((x0 + 4, mid - 20, x1 - 4, mid + 20))
+        assert ink_counts(band).get(rq.SPECTRA6["red"], 0) == 0
