@@ -133,6 +133,7 @@ THEME_ORDER: tuple[str, ...] = (
     "betweenus_dark",
     "carcosa",
     "control",
+    "trisolaris",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -1222,6 +1223,23 @@ THEMES = {
         "ornament_light": SPECTRA6["white"],
         "source": SPECTRA6["black"],
     },
+    # Liu Cixin's *The Three-Body Problem* — the Trisolaran sky. A custom
+    # frame (``render_trisolaris_frame``): black space, three suns and a
+    # planet whose positions come from an actual gravitational integration
+    # driven by the clock, the Red Coast Base dish on a ridge at the foot.
+    # White prose; the matched phrase is sunlight — a yellow core in a
+    # tangerine bloom. The literary-layout slots below serve only the
+    # goodnight / source-card fall-through paths.
+    "trisolaris": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["white"],
+        "accent": SPECTRA6["yellow"],
+        "ornament_dark": SPECTRA6["yellow"],
+        "ornament_light": SPECTRA6["yellow"],
+        "source": SPECTRA6["white"],
+    },
     # Wax-sealed letter. A quote presented as intimate handwritten
     # correspondence on a sheet of aged paper. White ``page_bg`` warmed
     # to a faint cream/vellum by ``draw_letter_border``'s Layer 0
@@ -1812,6 +1830,14 @@ ANTONIO_VARIABLE = str(BASE_DIR / "fonts/antonio/Antonio-Variable.ttf")
 # the heavy condensed grotesque of *Control*'s title cards; variable Weight
 # axis with ExtraLight..Bold named instances. Used by ``control``.
 OSWALD_VARIABLE = str(BASE_DIR / "fonts/oswald/Oswald-Variable.ttf")
+# Titillium Web (Accademia di Belle Arti di Urbino, OFL) — a technical
+# humanist sans drawn at a design school, cold and legible, the register of an
+# observatory printout rather than a game HUD. Static Regular / SemiBold /
+# Bold / Italic. Used by ``trisolaris``.
+TITILLIUM_REGULAR = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Regular.ttf")
+TITILLIUM_SEMIBOLD = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-SemiBold.ttf")
+TITILLIUM_BOLD = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Bold.ttf")
+TITILLIUM_ITALIC = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Italic.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3492,6 +3518,27 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         "ornament": [
             (OSWALD_VARIABLE, "Bold"),
             (ANTONIO_VARIABLE, "Bold"),
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "trisolaris": {
+        # Titillium Web — a cold, technical humanist sans. Regular for the
+        # body over the black sky; SemiBold for the matched phrase, which
+        # already carries a bloom, so a full Bold would clog its counters
+        # once the halo closes in around them.
+        "quote_regular": [
+            TITILLIUM_REGULAR,
+            *META_FONT_CANDIDATES,
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            TITILLIUM_SEMIBOLD,
+            TITILLIUM_BOLD,
+            *META_FONT_BOLD_CANDIDATES,
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            TITILLIUM_ITALIC,
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
@@ -24183,6 +24230,556 @@ def render_control_frame(time_str: str, quote_row: dict, width: int, height: int
 
 
 # ---------------------------------------------------------------------------
+# trisolaris — Liu Cixin's *The Three-Body Problem* (三体, 2008)
+# ---------------------------------------------------------------------------
+# The Trisolaran sky, computed rather than drawn. Three suns and the planet
+# that orbits them are integrated here, from fixed initial conditions, under
+# plain Newtonian gravity — so the frame is not a picture *of* the three-body
+# problem, it is a solution of it, and the clock is what advances it. Each
+# minute of the twelve-hour dial is a fixed slice of simulated time, so the
+# suns sweep through a genuinely chaotic dance across the day and every render
+# shows where they have got to, with the last hour of their paths trailing
+# behind them.
+#
+# **The novel's own mechanics fall out of the physics rather than being
+# painted on.** In the book's VR game a Trisolaran *stable era* is a stretch in
+# which the planet orbits one sun while the other two are far away, and a
+# *chaotic era* is everything else — the king orders his people to dehydrate
+# for the one and rehydrate for the other. Here the era is read off the
+# integration: stable when one sun's pull on the planet exceeds the next
+# strongest by ``_TRISOLARIS_STABLE_DOMINANCE``, chaotic otherwise. And when
+# the planet falls into a sun or is flung out of the system, that civilization
+# is destroyed and the next one begins — the planet is reborn in a circular
+# orbit about the most isolated sun and the counter on the header advances,
+# which is exactly how the game numbers its civilizations. The planet's trail
+# is broken at every rebirth so a teleport never draws as a streak.
+#
+# **Why the integration can be trusted to be byte-identical everywhere.** Only
+# ``+ - * /`` and ``math.sqrt`` are used — all correctly rounded under IEEE 754,
+# so the same constants produce the same trajectory on every platform. ``**`` is
+# deliberately avoided in the force law (``r2 * sqrt(r2)`` rather than
+# ``r2 ** 1.5``): ``pow`` goes through the platform libm, which is not required
+# to round correctly. The scheme is kick-drift-kick leapfrog, symplectic, at a
+# fixed step. Forces are Plummer-softened: without softening a close pass needs
+# an adaptive step to stay accurate, and an adaptive step would make the frame
+# depend on floating-point comparisons in the step controller.
+#
+# **The initial conditions were searched, not guessed.** A generic bound
+# three-body system ejects a member within a few dozen crossing times, which
+# would leave a twelve-hour dial showing one sun receding off the panel. The
+# constants below were picked by an offline search over random zero-momentum
+# starts for one whose three suns stay inside the sky for the whole window
+# *and* whose planet lives through a mixture of stable and chaotic eras with a
+# handful of civilizations lost across the day. ``TestTrisolarisEphemeris``
+# fences all three properties against the committed constants, so a change to
+# any of them that breaks the dance fails a test rather than a panel.
+#
+# **Composition.** The orrery owns the left of the canvas. At the foot, the
+# Red Coast Base dish stands black against the dusk on Radar Peak, its beam
+# dotted up toward the system — Ye Wenjie's transmission, sent with the Sun as
+# an amplifier. The quote sits in the dark sky on the right under a ``三体``
+# masthead, the matched phrase lit as sunlight (a yellow core in the bakelite
+# split-band tangerine bloom), the prose plain solid white. Along
+# the foot runs the reply from the Trisolaran pacifist that closes the first
+# act: DO NOT ANSWER.
+#
+# **The time.** The clock drives the simulation and the era label; no digit of
+# the hour or minute is printed. The civilization number is a count of deaths,
+# not a time. Composed at the canonical 800x480 and NEAREST-downsampled for a
+# non-native request (the ``metro`` convention) — the orrery projection and the
+# ridge are fixed panel geometry.
+# ---------------------------------------------------------------------------
+_TRISOLARIS_MASSES = (1.0, 0.85, 1.15)
+_TRISOLARIS_INITIAL_SUNS = (
+    (-0.7790231091549272, -1.123740528588034),
+    (-0.6284556317938058, 0.7024334277767176),
+    (1.141922083634489, 0.4579757521546296),
+)
+_TRISOLARIS_INITIAL_VELOCITIES = (
+    (-0.42512274278402506, 0.1819496698677228),
+    (0.3824413054486465, -0.3228627894307456),
+    (0.08699794187189179, 0.08042060969427037),
+)
+_TRISOLARIS_INITIAL_PLANET = (-1.0330201690484344, -1.4173172376938314)
+_TRISOLARIS_INITIAL_PLANET_VELOCITY = (0.7886371665064716, -0.8681726280332862)
+_TRISOLARIS_SOFTENING2 = 0.02          # sun-sun Plummer softening, squared
+_TRISOLARIS_PLANET_SOFTENING2 = 0.006  # planet-sun softening, squared
+_TRISOLARIS_DT = 0.004
+_TRISOLARIS_STEPS_PER_SAMPLE = 5
+_TRISOLARIS_SAMPLES_PER_MINUTE = 4
+_TRISOLARIS_PREROLL_MINUTES = 90       # so 12:00 already has a trail behind it
+_TRISOLARIS_DIAL_MINUTES = 720
+_TRISOLARIS_TRAIL_MINUTES = 60
+_TRISOLARIS_BURN_RADIUS2 = 0.0049      # planet within 0.07 of a sun: consumed
+_TRISOLARIS_LOST_RADIUS2 = 10.24       # planet beyond 3.2 of the barycentre: lost
+_TRISOLARIS_REBIRTH_RADIUS = 0.3
+_TRISOLARIS_STABLE_DOMINANCE = 4.0
+_TRISOLARIS_FIRST_CIVILIZATION = 183
+
+_TRISOLARIS_SKY = (146, 24, 436, 314)  # where the suns' whole-day paths are fitted, clear of the dish
+_TRISOLARIS_ORRERY_CLIP = (0, 0, 446, 420)
+_TRISOLARIS_COLUMN = (456, 780)        # the quote column's x extent
+_TRISOLARIS_QUOTE_RECT = (456, 118, 780, 372)
+_TRISOLARIS_DISH_X = 72                # the dish pedestal; its y comes from the ridge
+_TRISOLARIS_DISH_AIM_DEG = -52         # screen angle of the dish axis: up and to the right
+_TRISOLARIS_SUN_RADII = (6, 5, 7)
+_TRISOLARIS_STAR_SEED = 0x3B0D1E5
+_TRISOLARIS_WARNING = "DO NOT ANSWER!"
+_TRISOLARIS_WARNING_Y = 422
+
+_TRISOLARIS_EPHEMERIS: tuple | None = None
+_TRISOLARIS_PROJECTION: tuple | None = None
+
+
+def _trisolaris_sun_accel(pos):
+    """Softened pairwise gravity between the three suns (G = 1)."""
+    m = _TRISOLARIS_MASSES
+    ax = [0.0, 0.0, 0.0]
+    ay = [0.0, 0.0, 0.0]
+    for i in range(3):
+        for j in range(i + 1, 3):
+            dx = pos[j][0] - pos[i][0]
+            dy = pos[j][1] - pos[i][1]
+            r2 = dx * dx + dy * dy + _TRISOLARIS_SOFTENING2
+            inv = 1.0 / (r2 * math.sqrt(r2))
+            ax[i] += m[j] * dx * inv
+            ay[i] += m[j] * dy * inv
+            ax[j] -= m[i] * dx * inv
+            ay[j] -= m[i] * dy * inv
+    return ax, ay
+
+
+def _trisolaris_planet_accel(p, pos):
+    """Acceleration on the (massless) planet, plus each sun's pull strength —
+    the latter is what the era is read from."""
+    ax = ay = 0.0
+    pulls = []
+    for i in range(3):
+        dx = pos[i][0] - p[0]
+        dy = pos[i][1] - p[1]
+        r2 = dx * dx + dy * dy + _TRISOLARIS_PLANET_SOFTENING2
+        g = _TRISOLARIS_MASSES[i] / (r2 * math.sqrt(r2))
+        ax += g * dx
+        ay += g * dy
+        pulls.append(_TRISOLARIS_MASSES[i] / r2)
+    return ax, ay, pulls
+
+
+def _trisolaris_rebirth(pos, vel):
+    """A new civilization: a circular orbit about the most isolated sun — the
+    one whose nearest neighbour is furthest away, which is where a planet has
+    its best chance of a long stable era."""
+    best, home = -1.0, 0
+    for i in range(3):
+        nearest = min((pos[i][0] - pos[j][0]) * (pos[i][0] - pos[j][0])
+                      + (pos[i][1] - pos[j][1]) * (pos[i][1] - pos[j][1])
+                      for j in range(3) if j != i)
+        if nearest > best:
+            best, home = nearest, i
+    speed = math.sqrt(_TRISOLARIS_MASSES[home] / _TRISOLARIS_REBIRTH_RADIUS)
+    return ([pos[home][0] + _TRISOLARIS_REBIRTH_RADIUS, pos[home][1]],
+            [vel[home][0], vel[home][1] + speed])
+
+
+def _trisolaris_ephemeris() -> tuple:
+    """The whole day's integration, computed once per process.
+
+    Returns one sample per quarter-minute from the start of the preroll:
+    ``(suns, planet, dominance, civilization)`` where ``suns`` is three
+    ``(x, y)`` pairs, ``dominance`` is the strongest sun's pull over the next
+    strongest, and ``civilization`` counts the planet's deaths so far. About a
+    tenth of a second on a desktop; memoised because a contact sheet renders
+    144 frames in one process.
+    """
+    global _TRISOLARIS_EPHEMERIS
+    if _TRISOLARIS_EPHEMERIS is not None:
+        return _TRISOLARIS_EPHEMERIS
+    pos = [list(s) for s in _TRISOLARIS_INITIAL_SUNS]
+    vel = [list(v) for v in _TRISOLARIS_INITIAL_VELOCITIES]
+    p = list(_TRISOLARIS_INITIAL_PLANET)
+    pv = list(_TRISOLARIS_INITIAL_PLANET_VELOCITY)
+    ax, ay = _trisolaris_sun_accel(pos)
+    pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+    half = 0.5 * _TRISOLARIS_DT
+    dt = _TRISOLARIS_DT
+    civilization = 0
+    samples = []
+    total = (_TRISOLARIS_PREROLL_MINUTES + _TRISOLARIS_DIAL_MINUTES) * _TRISOLARIS_SAMPLES_PER_MINUTE
+    for _ in range(total):
+        ranked = sorted(pulls, reverse=True)
+        samples.append((tuple((s[0], s[1]) for s in pos), (p[0], p[1]),
+                        ranked[0] / ranked[1], civilization))
+        for _ in range(_TRISOLARIS_STEPS_PER_SAMPLE):
+            for i in range(3):
+                vel[i][0] += half * ax[i]
+                vel[i][1] += half * ay[i]
+            pv[0] += half * pax
+            pv[1] += half * pay
+            for i in range(3):
+                pos[i][0] += dt * vel[i][0]
+                pos[i][1] += dt * vel[i][1]
+            p[0] += dt * pv[0]
+            p[1] += dt * pv[1]
+            ax, ay = _trisolaris_sun_accel(pos)
+            pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+            for i in range(3):
+                vel[i][0] += half * ax[i]
+                vel[i][1] += half * ay[i]
+            pv[0] += half * pax
+            pv[1] += half * pay
+        burned = any((p[0] - s[0]) * (p[0] - s[0]) + (p[1] - s[1]) * (p[1] - s[1])
+                     < _TRISOLARIS_BURN_RADIUS2 for s in pos)
+        lost = p[0] * p[0] + p[1] * p[1] > _TRISOLARIS_LOST_RADIUS2
+        if burned or lost:
+            civilization += 1
+            p, pv = _trisolaris_rebirth(pos, vel)
+            pax, pay, pulls = _trisolaris_planet_accel(p, pos)
+    _TRISOLARIS_EPHEMERIS = tuple(samples)
+    return _TRISOLARIS_EPHEMERIS
+
+
+def _trisolaris_index(time_str: str) -> int:
+    """Ephemeris index for a wall-clock time on the twelve-hour dial.
+
+    Noon and midnight both start the dial, so 00:30 and 12:30 see the same sky.
+    """
+    try:
+        hour, minute = (int(part) for part in time_str.split(":")[:2])
+    except (ValueError, AttributeError):
+        hour, minute = 0, 0
+    dial = (hour % 12) * 60 + minute % 60
+    return (_TRISOLARIS_PREROLL_MINUTES + dial) * _TRISOLARIS_SAMPLES_PER_MINUTE
+
+
+def _trisolaris_projection() -> tuple[float, float, float]:
+    """``(scale, offset_x, offset_y)`` fitting the suns' whole-day paths into
+    ``_TRISOLARIS_SKY`` at one fixed scale, aspect preserved.
+
+    Derived from the ephemeris rather than hardcoded so the fit cannot drift
+    from the constants it depends on. The planet is left out of the fit on
+    purpose: a lost planet flies far outside the system, and fitting it would
+    shrink the suns to a cluster in the middle of the panel.
+    """
+    global _TRISOLARIS_PROJECTION
+    if _TRISOLARIS_PROJECTION is not None:
+        return _TRISOLARIS_PROJECTION
+    xs = [s[0] for sample in _trisolaris_ephemeris() for s in sample[0]]
+    ys = [s[1] for sample in _trisolaris_ephemeris() for s in sample[0]]
+    x0, y0, x1, y1 = _TRISOLARIS_SKY
+    scale = min((x1 - x0) / (max(xs) - min(xs)), (y1 - y0) / (max(ys) - min(ys)))
+    ox = (x0 + x1) / 2 - scale * (max(xs) + min(xs)) / 2
+    oy = (y0 + y1) / 2 - scale * (max(ys) + min(ys)) / 2
+    _TRISOLARIS_PROJECTION = (scale, ox, oy)
+    return _TRISOLARIS_PROJECTION
+
+
+def _trisolaris_project(point) -> tuple[float, float]:
+    scale, ox, oy = _trisolaris_projection()
+    return ox + scale * point[0], oy + scale * point[1]
+
+
+def _trisolaris_era(time_str: str) -> tuple[bool, int]:
+    """``(stable, civilization_number)`` at ``time_str``."""
+    sample = _trisolaris_ephemeris()[_trisolaris_index(time_str)]
+    return sample[2] > _TRISOLARIS_STABLE_DOMINANCE, _TRISOLARIS_FIRST_CIVILIZATION + sample[3]
+
+
+def _trisolaris_ridge_y(x: float) -> int:
+    """Radar Peak's skyline: high on the left where the dish stands, falling
+    away under the quote column. Two incommensurate sines keep it from reading
+    as a ruled curve."""
+    fall = min(1.0, max(0.0, (x - 60) / 480))
+    base = 392 + 62 * fall * fall * (3 - 2 * fall)
+    peak = 16 * math.exp(-((x - _TRISOLARIS_DISH_X) / 70.0) ** 2)
+    return int(base - peak + 6 * math.sin(x * 0.031) + 4 * math.sin(x * 0.087 + 1.3))
+
+
+def _trisolaris_paint_sky(image: Image.Image) -> None:
+    """Black space and a seeded star field, one star in five a blue one.
+
+    Stars stay out of the quote column and its header, where a stray white
+    pixel beside a letterform reads as a stroke of it.
+    """
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, 799, 479), fill=SPECTRA6["black"])
+    px = image.load()
+    rng = random.Random(_TRISOLARIS_STAR_SEED)
+    qx0, qy0, qx1, qy1 = _TRISOLARIS_QUOTE_RECT
+    for _ in range(230):
+        x = int(rng.random() * 800)
+        y = int(rng.random() * 440)
+        big = rng.random() < 0.1
+        blue = rng.random() < 0.18
+        if qx0 - 6 <= x <= qx1 + 6 and qy0 - 30 <= y <= qy1 + 34:
+            continue
+        if y >= _trisolaris_ridge_y(x) - 4:
+            continue
+        ink = SPECTRA6["blue"] if blue else SPECTRA6["white"]
+        if big:
+            draw.rectangle((x, y, x + 1, y + 1), fill=ink)
+        else:
+            px[x, y] = ink
+
+
+def _trisolaris_plot_segment(px, a, b, ink, keep: float, salt: int, hot: float = 0.0) -> None:
+    """Stipple a straight segment: each pixel along it survives with
+    probability ``keep`` (a position hash, so it is deterministic), clipped to
+    the orrery. ``ink=None`` paints a cooling sun trail instead — yellow with
+    probability ``hot`` and a 3/8 yellow share in the red remainder, so even
+    the oldest wake reads as warm tangerine rather than as the panel's red,
+    which sits within a few luminance points of its black."""
+    cx0, cy0, cx1, cy1 = _TRISOLARIS_ORRERY_CLIP
+    steps = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) + 1
+    for k in range(steps):
+        t = k / steps
+        x = int(a[0] + (b[0] - a[0]) * t)
+        y = int(a[1] + (b[1] - a[1]) * t)
+        if cx0 <= x < cx1 and cy0 <= y < cy1 and _flow_stroke_hash(x, y, salt) < keep:
+            if ink is None:
+                roll = _flow_stroke_hash(x, y, salt + 100)
+                warm = roll < hot or roll < 0.375
+                px[x, y] = SPECTRA6["yellow"] if warm else SPECTRA6["red"]
+            else:
+                px[x, y] = ink
+
+
+def _trisolaris_paint_orbits(image: Image.Image, index: int) -> None:
+    """The last hour of each body's path, cooling as it ages.
+
+    A sun's trail is yellow for its most recent quarter and red behind that,
+    thinning toward the oldest end — a hot body leaving a cooling wake. The
+    planet's trail is sparse white, and is drawn only back to the planet's most
+    recent rebirth: a new civilization begins in a new orbit, and the jump
+    between the two is not a path the planet travelled.
+    """
+    px = image.load()
+    ephemeris = _trisolaris_ephemeris()
+    span = _TRISOLARIS_TRAIL_MINUTES * _TRISOLARIS_SAMPLES_PER_MINUTE
+    start = max(1, index - span)
+    for k in range(start, index + 1):
+        age = (index - k) / span
+        keep = 0.85 - 0.7 * age
+        before, after = ephemeris[k - 1], ephemeris[k]
+        for i in range(3):
+            _trisolaris_plot_segment(px, _trisolaris_project(before[0][i]),
+                                     _trisolaris_project(after[0][i]), None, keep, 40 + i,
+                                     hot=max(0.0, 1.0 - age * 2.5))
+        if before[3] == ephemeris[index][3]:
+            _trisolaris_plot_segment(px, _trisolaris_project(before[1]),
+                                     _trisolaris_project(after[1]),
+                                     SPECTRA6["white"], keep * 0.7, 47)
+
+
+def _trisolaris_paint_bodies(image: Image.Image, index: int) -> None:
+    """Three suns as gold blooms, then the planet as a blue world with a white
+    lit limb. The suns share one mask so two near each other merge into one
+    glare rather than double-exposing."""
+    sample = _trisolaris_ephemeris()[index]
+    mask = Image.new("L", image.size, 0)
+    mdraw = ImageDraw.Draw(mask)
+    for (sx, sy), radius in zip((_trisolaris_project(s) for s in sample[0]), _TRISOLARIS_SUN_RADII):
+        mdraw.ellipse((sx - radius, sy - radius, sx + radius, sy + radius), fill=255)
+    paint_neon_mask(
+        image, mask, SPECTRA6["yellow"], SPECTRA6["red"],
+        radius=6, gamma=1.3, cap=0.75, tile=BAYER_8x8,
+        glow_minor=SPECTRA6["yellow"], glow_minor_share=0.375,
+        core_minor=SPECTRA6["white"], core_minor_share=0.25,
+    )
+    x, y = _trisolaris_project(sample[1])
+    cx0, cy0, cx1, cy1 = _TRISOLARIS_ORRERY_CLIP
+    if cx0 + 4 <= x < cx1 - 4 and cy0 + 4 <= y < cy1 - 4:
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=SPECTRA6["blue"], outline=SPECTRA6["white"])
+
+
+def _trisolaris_dish_geometry(ridge_top: int):
+    """Pedestal polygon, dish polygon, feed tip and aim for the Red Coast
+    antenna.
+
+    The dish is a parabolic section in profile: the reflecting face curves
+    toward the aim, and the back is thickest at the vertex and thins to the
+    rim, so the silhouette reads as a bowl rather than a flat plate.
+    """
+    x = _TRISOLARIS_DISH_X
+    pivot = (x, ridge_top - 46)
+    pedestal = [(x - 20, ridge_top + 6), (x - 7, pivot[1] + 4), (x + 7, pivot[1] + 4),
+                (x + 20, ridge_top + 6)]
+    aim = math.radians(_TRISOLARIS_DISH_AIM_DEG)
+    ux, uy = math.cos(aim), math.sin(aim)         # along the dish axis
+    vx, vy = -uy, ux                              # across the aperture
+    half, depth, back = 46, 21, 9
+    face, rear = [], []
+    for k in range(-12, 13):
+        s = k / 12.0
+        d = depth * s * s
+        face.append((pivot[0] + half * s * vx + d * ux, pivot[1] + half * s * vy + d * uy))
+        b = d - back * (1 - s * s)
+        rear.append((pivot[0] + half * s * vx + b * ux, pivot[1] + half * s * vy + b * uy))
+    feed = (pivot[0] + 40 * ux, pivot[1] + 40 * uy)
+    return pedestal, face, rear, pivot, feed, (ux, uy)
+
+
+def _trisolaris_warm_line(px, points, width: int, salt: int, keep: float = 1.0) -> None:
+    """A polyline in tangerine — red carrying a 3/8 yellow share, chosen per
+    pixel by position hash. Solid red is the panel's dimmest ink against its
+    black, so every warm line on this frame goes through here."""
+    for (ax, ay), (bx, by) in zip(points, points[1:]):
+        steps = int(max(abs(bx - ax), abs(by - ay))) + 1
+        for k in range(steps + 1):
+            t = k / steps
+            cx = ax + (bx - ax) * t
+            cy = ay + (by - ay) * t
+            for dy in range(width):
+                x, y = int(cx), int(cy) + dy
+                if 0 <= x < 800 and 0 <= y < 480 and _flow_stroke_hash(x, y, salt) < keep:
+                    warm = _flow_stroke_hash(x, y, salt + 1) < 0.375
+                    px[x, y] = SPECTRA6["yellow"] if warm else SPECTRA6["red"]
+
+
+def _trisolaris_paint_red_coast(image: Image.Image) -> None:
+    """Radar Peak and the Red Coast dish, drawn as line-work.
+
+    The ridge is a tangerine crest line with two fainter contours stepping
+    down the slope behind it, black below; the dish is white line-work — face,
+    back, feed struts, pedestal — standing on the peak. A black silhouette
+    against a dusk glow was the first cut and failed both ways: the glow read
+    as a red dune field sitting on the ridge, and the black dish vanished
+    wherever it rose above it. Line-work also matches the orrery above, which
+    is itself a plot of paths rather than a painting.
+
+    The transmission is a fan of wavefront arcs off the feed, along the dish
+    axis and thinning as they spread — a straight line from the dish to the
+    suns was tried and read as one more orbit trail.
+    """
+    draw = ImageDraw.Draw(image)
+    skyline = [(x, _trisolaris_ridge_y(x)) for x in range(0, 801, 4)]
+    draw.polygon(skyline + [(800, 480), (0, 480)], fill=SPECTRA6["black"])
+    px = image.load()
+    _trisolaris_warm_line(px, skyline, 2, 61)
+    for step, keep in ((11, 0.55), (24, 0.3)):
+        contour = [(x, _trisolaris_ridge_y(x) + step + int(3 * math.sin(x * 0.05 + step)))
+                   for x in range(0, 801, 4)]
+        _trisolaris_warm_line(px, contour, 1, 63 + step, keep)
+
+    ridge_top = _trisolaris_ridge_y(_TRISOLARIS_DISH_X)
+    pedestal, face, rear, pivot, feed, (ux, uy) = _trisolaris_dish_geometry(ridge_top)
+    white = SPECTRA6["white"]
+    draw.polygon(pedestal, fill=SPECTRA6["black"], outline=white)
+    draw.line([(pivot[0] - 4, pivot[1] + 4), (pedestal[0][0] + 6, ridge_top), (pedestal[3][0] - 6, pivot[1] + 12)],
+              fill=white, width=1)
+    outline = [(round(a), round(b)) for a, b in face + rear[::-1]]
+    draw.polygon(outline, fill=SPECTRA6["black"])
+    draw.line([(round(a), round(b)) for a, b in face], fill=white, width=2)
+    draw.line([(round(a), round(b)) for a, b in rear], fill=white, width=1)
+    for strut in (face[0], face[-1]):
+        draw.line([strut, feed], fill=white, width=1)
+    draw.ellipse((feed[0] - 2, feed[1] - 2, feed[0] + 2, feed[1] + 2), fill=SPECTRA6["yellow"])
+
+    aim = math.atan2(uy, ux)
+    for ring, radius in enumerate(range(16, 76, 12)):
+        keep = 0.95 - 0.16 * ring
+        spread = math.radians(16 + 4 * ring)
+        steps = int(radius * spread * 2) + 1
+        arc = [(feed[0] + radius * math.cos(aim - spread + 2 * spread * k / steps),
+                feed[1] + radius * math.sin(aim - spread + 2 * spread * k / steps))
+               for k in range(steps + 1)]
+        _trisolaris_warm_line(px, arc, 1, 91 + ring, keep)
+
+
+def _trisolaris_paint_header(image: Image.Image, draw: ImageDraw.ImageDraw, time_str: str) -> None:
+    """``三体`` masthead, the title, the civilization number and the era.
+
+    The era carries its own glyph: three small discs for the three suns, one
+    filled in a stable era (the planet has a sun of its own) and all three in
+    a chaotic one.
+    """
+    stable, civilization = _trisolaris_era(time_str)
+    col_x0, col_x1 = _TRISOLARIS_COLUMN
+    han = load_font([YUJI_BOKU_REGULAR, *META_FONT_BOLD_CANDIDATES], 46)
+    draw.text((col_x0, 22), "三体", font=han, fill=SPECTRA6["white"])
+    han_w = draw.textlength("三体", font=han)
+    chrome = load_font([SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], 11)
+    x = col_x0 + han_w + 14
+    draw_tracked(draw, (x, 28), "THE THREE-BODY PROBLEM", chrome, SPECTRA6["white"], tracking=1)
+    draw_tracked(draw, (x, 47), f"CIVILIZATION NO. {civilization}", chrome, SPECTRA6["yellow"], tracking=1)
+    era = "STABLE ERA · REHYDRATE" if stable else "CHAOTIC ERA · DEHYDRATE"
+    draw_tracked(draw, (x, 66), era, chrome, SPECTRA6["white"] if stable else SPECTRA6["yellow"], tracking=1)
+    # A dotted rule closes the header, ending in the era glyph: three discs
+    # for the three suns, one filled in a stable era (the planet has a sun of
+    # its own) and all three in a chaotic one.
+    glyph_x0 = col_x1 - 40
+    for xx in range(col_x0, glyph_x0 - 6, 4):
+        draw.point((xx, 100), fill=SPECTRA6["white"])
+    for k in range(3):
+        cx = glyph_x0 + 4 + k * 14
+        filled = (not stable) or k == 0
+        draw.ellipse((cx - 4, 96, cx + 4, 104), fill=SPECTRA6["yellow"] if filled else None,
+                     outline=SPECTRA6["yellow"])
+
+
+def _trisolaris_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> int:
+    """The quote in the dark sky: solid white prose, the matched phrase lit as
+    sunlight. Returns the block's bottom y.
+
+    The prose is deliberately unlit. A faint cold-blue halo was tried to make
+    it read as starlight, and at radius 2 it read instead as a blue outline
+    around every letter; white on black needs no help.
+    """
+    prose, hot, bottom = wrap_quote_into_masks(
+        draw, image.size, quote_row, _TRISOLARIS_QUOTE_RECT, theme="trisolaris",
+        font_max=30, font_min=14, line_height_mult=1.32,
+    )
+    image.paste(SPECTRA6["white"], (0, 0), prose.point(lambda v: 255 if v > 128 else 0))
+    paint_neon_mask(
+        image, hot, SPECTRA6["yellow"], SPECTRA6["red"],
+        radius=4, gamma=1.5, cap=0.6, ground=frozenset({SPECTRA6["black"], SPECTRA6["blue"]}),
+        tile=BAYER_8x8,
+        glow_minor=SPECTRA6["yellow"], glow_minor_share=0.375,
+    )
+    return bottom
+
+
+def _trisolaris_paint_credits(draw: ImageDraw.ImageDraw, quote_row: dict, top: int) -> None:
+    col_x0, col_x1 = _TRISOLARIS_COLUMN
+    font = load_font([TITILLIUM_ITALIC, *META_FONT_CANDIDATES], 15)
+    draw_truncated_centred_byline(draw, quote_row, centre=(col_x0 + col_x1) // 2,
+                                  baseline=min(412, top + 26), max_width=col_x1 - col_x0,
+                                  font=font, fill=SPECTRA6["white"])
+
+
+def _trisolaris_paint_warning(draw: ImageDraw.ImageDraw) -> None:
+    """The pacifist's reply, three times along the foot."""
+    col_x0, col_x1 = _TRISOLARIS_COLUMN
+    font = load_font([SPACEMONO_BOLD, *META_FONT_BOLD_CANDIDATES], 11)
+    for repeats in (3, 2, 1):
+        text = "  ".join([_TRISOLARIS_WARNING] * repeats)
+        width = draw.textlength(text, font=font)
+        if width <= col_x1 - col_x0:
+            break
+    draw.text(((col_x0 + col_x1 - width) / 2, _TRISOLARIS_WARNING_Y), text, font=font, fill=SPECTRA6["red"])
+
+
+def render_trisolaris_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """The Trisolaran sky (see the module section comment above)."""
+    index = _trisolaris_index(time_str)
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["black"])
+    _trisolaris_paint_sky(image)
+    _trisolaris_paint_orbits(image, index)
+    _trisolaris_paint_red_coast(image)
+    _trisolaris_paint_bodies(image, index)
+    draw = ImageDraw.Draw(image)
+    _trisolaris_paint_header(image, draw, time_str)
+    bottom = _trisolaris_paint_quote(image, draw, quote_row)
+    _trisolaris_paint_credits(draw, quote_row, bottom)
+    _trisolaris_paint_warning(draw)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+
+# ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
 # ---------------------------------------------------------------------------
 # The most on-brand object in the rotation: the one theme that is *about books
@@ -27106,6 +27703,8 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_photo_frame(time_str, quote_row, width, height)
     if theme == "control":
         return render_control_frame(time_str, quote_row, width, height)
+    if theme == "trisolaris":
+        return render_trisolaris_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)

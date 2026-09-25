@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control")
+                             "control", "trisolaris")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4116,3 +4116,174 @@ class TestControlFrame:
         )
         assert text.endswith("…") and len(text) > 20
         assert rq.tracked_width(draw, text, font, tracking=1) <= 300
+
+
+class TestTrisolarisFrame:
+    """``trisolaris`` — Liu Cixin's *The Three-Body Problem*.
+
+    Three suns and a planet integrated under Newtonian gravity from committed
+    initial conditions, advanced by the clock; the era and the civilization
+    count are read off the integration; the Red Coast dish on Radar Peak; the
+    quote in the dark sky with the matched phrase lit as sunlight.
+    """
+
+    ROW = dict(
+        display_quote="The clock was striking ten when he came back, and the whole "
+                      "house seemed asleep; only the stars were awake over the river.",
+        matched_text="striking ten",
+        author="H. G. Wells",
+        title="The Time Machine",
+        source_id="35",
+        line_number=646,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="10:00"):
+        return rq.render(time_str, make_row(**(row or TestTrisolarisFrame.ROW)),
+                         800, 480, mode="production", theme="trisolaris")
+
+    @staticmethod
+    def _dial_indices():
+        return [rq._trisolaris_index(f"{h:02d}:{m:02d}") for h in range(12) for m in range(60)]
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "trisolaris" in rq.THEMES
+        assert "trisolaris" in rq.THEME_ORDER
+        assert "trisolaris" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["trisolaris"] == 0.7
+        assert rq.theme_font_candidates("trisolaris", "quote_regular")[0] == rq.TITILLIUM_REGULAR
+        assert rq.theme_font_candidates("trisolaris", "quote_bold")[0] == rq.TITILLIUM_SEMIBOLD
+        for path in (rq.TITILLIUM_REGULAR, rq.TITILLIUM_SEMIBOLD, rq.TITILLIUM_BOLD, rq.TITILLIUM_ITALIC):
+            assert pathlib.Path(path).exists()
+        assert (pathlib.Path(rq.TITILLIUM_REGULAR).parent / "OFL.txt").exists()
+
+    def test_frame_is_on_palette_and_deterministic(self):
+        image = self._render()
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_the_clock_drives_the_sky(self):
+        """Noon and midnight both start the dial, so the same minute past
+        either renders identically; a different minute moves the suns."""
+        assert pixel_bytes(self._render(time_str="00:30")) == pixel_bytes(self._render(time_str="12:30"))
+        orrery = (0, 0, 446, 380)
+        a = self._render(time_str="09:00").crop(orrery)
+        b = self._render(time_str="09:05").crop(orrery)
+        assert pixel_bytes(a) != pixel_bytes(b)
+
+    def test_the_suns_stay_in_the_system_all_day(self):
+        """The committed initial conditions were searched for a dance that
+        stays bound across the whole dial. A generic three-body start ejects
+        a sun within a few dozen crossing times, so any change to the
+        constants, masses or step that lets one escape fails here — and the
+        projection, which fits the suns' whole-day paths, would otherwise
+        shrink the remaining two to a speck."""
+        for sample in rq._trisolaris_ephemeris():
+            for x, y in sample[0]:
+                assert x * x + y * y < 2.5 * 2.5
+
+    def test_barycentre_is_fixed_at_the_origin(self):
+        """Zero total momentum is conserved exactly by pairwise-symmetric
+        forces under leapfrog, so the mass-weighted centre stays at the
+        origin — the point the dish's transmission is aimed at. Drift here
+        means the integrator or the initial conditions were mangled."""
+        masses = rq._TRISOLARIS_MASSES
+        total = sum(masses)
+        for sample in rq._trisolaris_ephemeris():
+            cx = sum(m * s[0] for m, s in zip(masses, sample[0])) / total
+            cy = sum(m * s[1] for m, s in zip(masses, sample[0])) / total
+            assert abs(cx) < 1e-9 and abs(cy) < 1e-9
+
+    def test_both_eras_occur_and_neither_dominates(self):
+        """The era is physics, not decoration — so the day must actually
+        contain both, each for a real share of the dial's buckets."""
+        stable = [rq._trisolaris_era(f"{h:02d}:{m:02d}")[0] for h in range(12) for m in range(0, 60, 5)]
+        share = sum(stable) / len(stable)
+        assert 0.3 <= share <= 0.8, share
+        switches = sum(1 for a, b in zip(stable, stable[1:]) if a != b)
+        assert switches >= 6
+
+    def test_civilizations_are_lost_across_the_day(self):
+        """The counter starts at ``_TRISOLARIS_FIRST_CIVILIZATION`` at the
+        start of the preroll, never goes backwards within the dial, and a
+        handful of civilizations are destroyed between noon and midnight."""
+        ephemeris = rq._trisolaris_ephemeris()
+        assert ephemeris[0][3] == 0
+        counts = [ephemeris[i][3] for i in self._dial_indices()]
+        assert counts == sorted(counts)
+        assert 3 <= counts[-1] - counts[0] <= 25
+        assert rq._trisolaris_era("00:00")[1] == rq._TRISOLARIS_FIRST_CIVILIZATION + counts[0]
+
+    def test_the_planet_never_leaves_the_system(self):
+        """A lost planet is reborn on the very next sample, so every stored
+        planet position is within the loss radius plus one sample's travel."""
+        for sample in rq._trisolaris_ephemeris():
+            px_, py_ = sample[1]
+            assert px_ * px_ + py_ * py_ < rq._TRISOLARIS_LOST_RADIUS2 * 1.5
+
+    def test_the_planet_trail_breaks_at_a_rebirth(self):
+        """A new civilization begins in a new orbit; the jump between the two
+        is not a path the planet travelled and must not be drawn. The planet's
+        trail is the only white the orbit painter lays down, so the dead
+        planet's last position must stay dark just after a rebirth."""
+        ephemeris = rq._trisolaris_ephemeris()
+        clip = rq._TRISOLARIS_ORRERY_CLIP
+        checked = 0
+        for k in range(1, len(ephemeris) - 3):
+            if ephemeris[k][3] == ephemeris[k - 1][3]:
+                continue
+            old = rq._trisolaris_project(ephemeris[k - 1][1])
+            new = rq._trisolaris_project(ephemeris[k][1])
+            inside = clip[0] + 4 <= old[0] < clip[2] - 4 and clip[1] + 4 <= old[1] < clip[3] - 4
+            if not inside or math.dist(old, new) < 40:
+                continue
+            image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+            rq._trisolaris_paint_orbits(image, k + 2)
+            window = image.crop((int(old[0]) - 3, int(old[1]) - 3, int(old[0]) + 4, int(old[1]) + 4))
+            assert rq.SPECTRA6["white"] not in distinct_inks(window), f"trail crosses rebirth at sample {k}"
+            checked += 1
+        assert checked >= 1, "no rebirth landed far enough from its predecessor to test"
+
+    def test_integration_is_identical_in_a_fresh_process(self):
+        """The ephemeris uses only correctly rounded operations, so a fresh
+        interpreter (with a different hash seed) must reproduce it bit for bit
+        — the property the golden fixture and run_clock's dedup depend on."""
+        import os
+        import subprocess
+        import sys
+        code = ("from idle_hours import render_quote as rq; e = rq._trisolaris_ephemeris(); "
+                "print(repr(e[-1]), len(e))")
+        env = dict(os.environ, PYTHONHASHSEED="12345")
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                             env=env, check=True).stdout.strip()
+        ephemeris = rq._trisolaris_ephemeris()
+        assert out == f"{ephemeris[-1]!r} {len(ephemeris)}"
+
+    def test_the_matched_phrase_is_the_only_sunlight_in_the_column(self):
+        """Yellow in the quote rect comes from the matched phrase and nothing
+        else: stars are kept out of it, and a row with no phrase paints none."""
+        yellow = rq.SPECTRA6["yellow"]
+        rect = rq._TRISOLARIS_QUOTE_RECT
+        assert yellow in distinct_inks(self._render().crop(rect))
+        plain = self._render({**self.ROW, "matched_text": ""})
+        assert yellow not in distinct_inks(plain.crop(rect))
+
+    def test_era_header_follows_the_physics(self):
+        """A stable and a chaotic minute paint different headers, and the
+        header's text comes from ``_trisolaris_era``."""
+        eras = {}
+        for h in range(12):
+            for m in range(0, 60, 5):
+                t = f"{h:02d}:{m:02d}"
+                eras.setdefault(rq._trisolaris_era(t)[0], t)
+        assert set(eras) == {True, False}
+        header = (rq._TRISOLARIS_COLUMN[0], 0, 800, 108)
+        stable = self._render(time_str=eras[True]).crop(header)
+        chaotic = self._render(time_str=eras[False]).crop(header)
+        assert pixel_bytes(stable) != pixel_bytes(chaotic)
+
+    def test_malformed_time_falls_back_to_the_start_of_the_dial(self):
+        assert rq._trisolaris_index("garbage") == rq._trisolaris_index("00:00")
+        image = rq.render("garbage", make_row(**self.ROW), 800, 480, mode="production", theme="trisolaris")
+        assert image.size == (800, 480)

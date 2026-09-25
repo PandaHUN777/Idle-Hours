@@ -243,6 +243,11 @@ THEME_SATURATION: dict[str, float] = {
     # chromatic-on-light profile as ``default`` / ``swiss``; the gentler tier
     # keeps the coral halo a stain rather than a fire-engine smear.
     "control": 0.5,
+    # Liu Cixin's *The Three-Body Problem* — a black sky whose suns, their
+    # tangerine wakes and the sunlit matched phrase are all falling-density
+    # blooms or sparse stipple. Dark-ground tier, the ``nocturne`` /
+    # ``bakelite`` argument: a low saturation flattens exactly those.
+    "trisolaris": 0.7,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler

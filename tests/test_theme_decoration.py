@@ -98,6 +98,7 @@ CUSTOM_FRAME_THEMES = (
     "autochrome",
     "photo",
     "control",
+    "trisolaris",
 )
 
 # ``diags`` is the developer swatch panel, not a literary theme: it paints its

@@ -254,6 +254,7 @@ def parse_args() -> argparse.Namespace:
         "betweenus_dark",
         "carcosa",
         "control",
+        "trisolaris",
         "diags",
     ]
     parser.add_argument(
