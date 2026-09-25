@@ -4393,6 +4393,33 @@ class TestCultureFrame:
         assert rq._marain_layout("o'clock", 20) == [[rq._marain_code(c) for c in "oclock"]]
         assert rq._marain_layout("", 5) == []
 
+    def test_hyphens_break_marain_words(self):
+        rows = rq._marain_layout("five-and-twenty", 20)
+        assert rows == [[rq._marain_code(c) for c in "five"] + [None]
+                        + [rq._marain_code(c) for c in "and"] + [None]
+                        + [rq._marain_code(c) for c in "twenty"]]
+
+    def test_long_phrase_shrinks_rather_than_dropping_the_hour(self):
+        """The Codex finding on #268: at full size this phrase wraps to four
+        rows and only three fit, so the last row — the hour — was sliced off."""
+        phrase = "Five and twenty minutes past eight"
+        pitch, _, _, rows = rq._culture_marain_fit(phrase)
+        assert pitch < rq._CULTURE_MARAIN_PITCH
+        assert rows[-1][-5:] == [rq._marain_code(c) for c in "eight"]
+
+    def test_no_corpus_phrase_loses_a_glyph(self):
+        """Every matched phrase in both committed corpora transcribes whole."""
+        phrases = {
+            (row.get("matched_text") or "").strip()
+            for path in (pq.DEFAULT_DATABASE_PATH, pq.DEFAULT_INPUT_PATH)
+            for row in iter_jsonl(pathlib.Path(path))
+        } - {""}
+        assert len(phrases) > 100
+        for phrase in phrases:
+            _, _, _, rows = rq._culture_marain_fit(phrase)
+            want = sum(rq._marain_code(c) is not None for c in phrase)
+            assert rq._marain_glyph_count(rows) == want, phrase
+
     def test_night_face_is_dark_but_for_its_cities(self):
         inks = {rq._culture_face_ink(r, x, y, x * 1.3, (y % 10) / 10, -0.4)
                 for r in range(64) for x in range(0, 300, 7) for y in range(0, 60, 3)}

@@ -24987,9 +24987,20 @@ def _marain_draw_glyph(draw: ImageDraw.ImageDraw, x: int, y: int, code: int,
         draw.ellipse((px_ - dot, py_ - dot, px_ + dot, py_ + dot), fill=fill)
 
 
+def _marain_glyph_count(rows) -> int:
+    return sum(code is not None for row in rows for code in row)
+
+
 def _marain_layout(text: str, max_cols: int) -> list[list[int | None]]:
-    """Break ``text`` into rows of glyph codes, wrapping only at word gaps."""
-    words = [[_marain_code(c) for c in w if _marain_code(c) is not None] for w in text.split()]
+    """Break ``text`` into rows of glyph codes, wrapping only at word gaps.
+
+    Hyphens count as word gaps: the script has no hyphen glyph, so
+    "five-and-twenty" would otherwise fuse into one thirteen-letter word
+    that no row can hold. A word still longer than a row is cut to it —
+    callers that must not lose glyphs check with ``_marain_glyph_count``.
+    """
+    words = [[_marain_code(c) for c in w if _marain_code(c) is not None]
+             for w in text.replace("-", " ").split()]
     words = [w for w in words if w]
     rows: list[list[int | None]] = []
     row: list[int | None] = []
@@ -25029,7 +25040,8 @@ _CULTURE_ORBITAL_W = 24                  # band thickness on screen, px
 _CULTURE_NOON = math.radians(-90)
 _CULTURE_MARAIN_RECT = (494, 338, 780, 446)
 _CULTURE_MARAIN_PITCH = 7
-_CULTURE_MARAIN_STEP = 24                # glyph advance, px
+_CULTURE_MARAIN_MIN_PITCH = 3
+_CULTURE_MARAIN_HEAD = 28               # label band above the glyphs, px
 _CULTURE_STAR_SEED = 0xBA4C5
 # Ships as (nose-left x, centreline y, length, half-girth): the GSV, then escorts.
 _CULTURE_SHIPS = ((520, 34, 84, 4), (618, 52, 22, 2), (656, 30, 14, 1))
@@ -25230,6 +25242,35 @@ def _culture_paint_ships(image: Image.Image) -> None:
     mask.close()
 
 
+def _culture_marain_fit(phrase: str) -> tuple[int, int, int, list[list[int | None]]]:
+    """``(pitch, step, row_step, rows)`` for the largest glyphs that hold the
+    whole phrase in the Marain block.
+
+    Steps the grid pitch down from ``_CULTURE_MARAIN_PITCH`` rather than
+    dropping rows: this block is the time written a second time, and the
+    phrases that overflow at full size are the long spelled-out ones ("five
+    and twenty minutes past eight") whose last row is the hour itself — a
+    truncation there removes exactly the word the block exists to carry.
+    Spacing scales with the pitch so smaller glyphs keep the same rhythm.
+    Only a phrase too long even at the floor pitch is cut, and no committed
+    corpus row is (``TestCultureFrame`` sweeps them).
+    """
+    x0, y0, x1, y1 = _CULTURE_MARAIN_RECT
+    avail_h = y1 - (y0 + _CULTURE_MARAIN_HEAD)
+    want = _marain_glyph_count(_marain_layout(phrase, len(phrase) + 1))
+    for pitch in range(_CULTURE_MARAIN_PITCH, _CULTURE_MARAIN_MIN_PITCH - 1, -1):
+        glyph = pitch * 2
+        step = glyph + round(pitch * 10 / 7)
+        row_step = glyph + round(pitch * 16 / 7)
+        cols = max(1, (x1 - x0 - glyph) // step + 1)
+        rows = _marain_layout(phrase, cols)
+        if (len(rows) * row_step - (row_step - glyph) <= avail_h
+                and _marain_glyph_count(rows) == want):
+            return pitch, step, row_step, rows
+    max_rows = max(1, (avail_h - glyph) // row_step + 1)
+    return pitch, step, row_step, rows[:max_rows]
+
+
 def _culture_paint_marain(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
     """The matched phrase written out again, in Marain, under the Orbital."""
     x0, y0, x1, y1 = _CULTURE_MARAIN_RECT
@@ -25241,23 +25282,20 @@ def _culture_paint_marain(image: Image.Image, draw: ImageDraw.ImageDraw, quote_r
     phrase = (quote_row.get("matched_text") or "").strip()
     if not phrase:
         return
-    pitch, step = _CULTURE_MARAIN_PITCH, _CULTURE_MARAIN_STEP
+    pitch, step, row_step, rows = _culture_marain_fit(phrase)
     glyph = pitch * 2
-    cols = max(1, (x1 - x0 - glyph) // step + 1)
-    rows = _marain_layout(phrase, cols)
-    row_step = glyph + 16
-    top = y0 + 28
-    max_rows = max(1, (y1 - top - glyph) // row_step + 1)
+    top = y0 + _CULTURE_MARAIN_HEAD
     mask = Image.new("L", image.size, 0)
     md = ImageDraw.Draw(mask)
-    block_h = min(len(rows), max_rows) * row_step - (row_step - glyph)
+    block_h = len(rows) * row_step - (row_step - glyph)
     top += max(0, (y1 - top - block_h) // 2)
-    for r, codes in enumerate(rows[:max_rows]):
+    stroke, dot = (3, 2) if pitch >= 6 else (2, 2) if pitch >= 5 else (2, 1)
+    for r, codes in enumerate(rows):
         width_px = (len(codes) - 1) * step + glyph
         x = x0 + max(0, (x1 - x0 - width_px) // 2)
         for code in codes:
             if code is not None:
-                _marain_draw_glyph(md, x, top + r * row_step, code, pitch, 255, stroke=3, dot=2)
+                _marain_draw_glyph(md, x, top + r * row_step, code, pitch, 255, stroke=stroke, dot=dot)
             x += step
     paint_neon_mask(image, mask, white, blue, radius=3, gamma=1.5, cap=0.6,
                     ground=_culture_ground())
