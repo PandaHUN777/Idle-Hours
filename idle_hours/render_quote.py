@@ -133,6 +133,7 @@ THEME_ORDER: tuple[str, ...] = (
     "betweenus_dark",
     "carcosa",
     "control",
+    "codex",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -1212,6 +1213,22 @@ THEMES = {
     # phrase is Hiss red with a coral bloom stippled into the white around it.
     # The literary-layout slots below serve only the goodnight / source-card
     # fall-through paths.
+    # Codex Seraphinianus — Luigi Serafini's imaginary encyclopedia (1981). A
+    # custom frame (``render_codex_frame``): cream page, a chimerical plant
+    # plate in full-palette colour, columns of procedurally generated asemic
+    # script, the quote as the page's one deciphered passage, and the time as
+    # a base-21 page number in invented numerals. The literary-layout slots
+    # below serve only the goodnight / source-card fall-through paths.
+    "codex": {
+        "page_bg": SPECTRA6["white"],
+        "text": SPECTRA6["black"],
+        "subtle": SPECTRA6["black"],
+        "faint": SPECTRA6["black"],
+        "accent": SPECTRA6["red"],
+        "ornament_dark": SPECTRA6["blue"],
+        "ornament_light": SPECTRA6["blue"],
+        "source": SPECTRA6["blue"],
+    },
     "control": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -2030,6 +2047,14 @@ LATO_ITALIC = str(BASE_DIR / "fonts/lato/Lato-Italic.ttf")
 ALMENDRA_REGULAR = str(BASE_DIR / "fonts/almendra/Almendra-Regular.ttf")
 ALMENDRA_BOLD = str(BASE_DIR / "fonts/almendra/Almendra-Bold.ttf")
 ALMENDRA_DISPLAY = str(BASE_DIR / "fonts/almendra/AlmendraDisplay-Regular.ttf")
+# Fondamento (Astigmatic, OFL) — a calligraphic book hand with the broad-nib
+# modulation of an Italian chancery script. The Codex Seraphinianus is Luigi
+# Serafini's *handwritten* encyclopedia, so the one deciphered passage on a
+# `codex` page is set in a pen hand rather than a typeset serif; the Italic cut
+# carries the matched phrase (roman/italic split plus colour, the `cartograph`
+# move — Fondamento ships no bold). `codex` is its sole consumer.
+FONDAMENTO_REGULAR = str(BASE_DIR / "fonts/fondamento/Fondamento-Regular.ttf")
+FONDAMENTO_ITALIC = str(BASE_DIR / "fonts/fondamento/Fondamento-Italic.ttf")
 
 THEME_FONTS: dict[str, dict[str, list]] = {
     "default": {
@@ -3466,6 +3491,29 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         "ornament": [
             ALMENDRA_DISPLAY,
             ALMENDRA_BOLD,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "codex": {
+        # Fondamento — a calligraphic pen hand for Serafini's handwritten
+        # encyclopedia. Regular body, Italic matched phrase (no bold cut
+        # exists; the italic plus the red carries the step). Falls back
+        # through the bundled IM Fell English, the nearest period book hand,
+        # before the system serifs.
+        "quote_regular": [
+            FONDAMENTO_REGULAR,
+            IMFELLENGLISH_REGULAR,
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            FONDAMENTO_ITALIC,
+            IMFELLENGLISH_ITALIC,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            FONDAMENTO_ITALIC,
+            FONDAMENTO_REGULAR,
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
@@ -24181,6 +24229,502 @@ def render_control_frame(time_str: str, quote_row: dict, width: int, height: int
     return image
 
 
+# ---------------------------------------------------------------------------
+# codex — a page of the Codex Seraphinianus
+# ---------------------------------------------------------------------------
+# Luigi Serafini's imaginary encyclopedia (1981): a book of a world that does
+# not exist, written in a script nobody can read, illustrated in vivid coloured
+# pencil. The page is laid out as one of its botanical entries — a chimerical
+# plant plate on the left, columns of asemic script on the right — and the
+# quote is the one passage on the page that has been *deciphered*: set in a pen
+# hand between lines of the untranslated script, as though a reader had
+# pencilled the gloss in.
+#
+# **The script is generated, not typeset.** No font can carry it, because the
+# point of Serafini's writing is that it is not an alphabet. ``_codex_script``
+# drives a pen along a prolate trochoid — the curve a point on a rolling wheel
+# traces when it sits outside the rim — which is the same mathematics as a
+# cursive hand: the pen rises, overshoots backwards and crosses its own path
+# (a loop) whenever the backward swing outruns the forward advance. Per letter
+# the swing, height and direction are drawn from a seeded RNG, so each quote
+# gets its own page of script, byte-identical across renders (seeded from
+# ``_row_digest``, never ``hash()``).
+#
+# **The time is the page number.** Serafini numbered his pages in an invented
+# numeral system that readers later worked out to be base 21. The frame writes
+# the minute of the day in base 21 (at most three digits: 20·441 + 20·21 + 20
+# is well past 1439) using twenty-one invented digit glyphs, each built from the
+# bits of its value so every digit is distinct and the *same* digit always looks
+# the same — which is what makes it a numeral system rather than decoration.
+# Undecipherable at a glance, exactly as in the book, but a determined reader
+# can decode it; the readable time stays with the matched phrase.
+#
+# **Vibrancy is carried by the plate, not the ground.** The page stays a calm
+# cream so the dense script columns read; the plant surfaces every native ink
+# and six documented two-ink recipes at once — a rainbow-banded stem (red,
+# tangerine R+Y, yellow, green, blue, violet R+B), fish-shaped leaves in teal
+# G+B and mint G+W with blue scale arcs, rose R+W and violet petals around a
+# blue-irised eye, sepia R+G roots. Colour choices per plant are seeded from the
+# row, so each entry in the encyclopedia is a different specimen.
+_CODEX_PLATE = (20, 40, 324, 452)            # the illustration's clear field
+_CODEX_STEM_BASE = (128, 404)
+_CODEX_STEM_TOP = (140, 118)
+_CODEX_COLUMN = (344, 772)                   # text column x-range
+_CODEX_QUOTE_RECT = (344, 146, 772, 392)
+_CODEX_RAINBOW_CENTRE = (716, 76)
+_CODEX_BANDS = (
+    ("solid", SPECTRA6["red"]),
+    ("2", SPECTRA6["red"], SPECTRA6["yellow"], 0.375),      # tangerine
+    ("solid", SPECTRA6["yellow"]),
+    ("solid", SPECTRA6["green"]),
+    ("solid", SPECTRA6["blue"]),
+    ("2", SPECTRA6["red"], SPECTRA6["blue"], 0.5),          # violet
+)
+_CODEX_LEAF_FILLS = (
+    ("2", SPECTRA6["green"], SPECTRA6["blue"], 0.375),      # teal
+    ("2", SPECTRA6["green"], SPECTRA6["white"], 0.5),       # mint
+    ("solid", SPECTRA6["green"]),
+)
+_CODEX_PETAL_FILLS = (
+    ("2", SPECTRA6["red"], SPECTRA6["white"], 0.5),         # rose
+    ("2", SPECTRA6["red"], SPECTRA6["blue"], 0.5),          # violet
+)
+_CODEX_SEPIA = ("2", SPECTRA6["red"], SPECTRA6["green"], 0.5)
+_CODEX_TANGERINE = ("2", SPECTRA6["red"], SPECTRA6["yellow"], 0.375)
+_CODEX_CREAM_DENSITY = 14                    # of 256: sparse Y+W paper wash
+_CODEX_NUMERAL_BASE = 21
+_CODEX_WORD_OVERHEAD = 1.6                   # x-heights: lead-in + exit tail + loop overshoot
+
+
+def _codex_paint_page(image: Image.Image) -> None:
+    """Cream paper: a sparse aperiodic yellow scatter over white.
+
+    A hash field rather than a Bayer rank for the reason ``position_noise``
+    documents — at a sparse density an ordered tile lays a visible lattice —
+    and the seeded C-speed field ``_tarot_noise`` provides rather than a
+    per-pixel Python call, because it covers the whole canvas.
+    """
+    noise = _tarot_noise(image.width, image.height, 0xC0DE)
+    mask = noise.point(lambda v: 255 if v < _CODEX_CREAM_DENSITY else 0)
+    image.paste(SPECTRA6["yellow"], (0, 0), mask)
+    noise.close()
+    mask.close()
+
+
+def _codex_letter_points(x0: float, base: float, xh: float, rng: random.Random) -> tuple[list, float]:
+    """One asemic letter as a pen path that starts and ends on the baseline.
+
+    ``x = x0 + w·t + r·sin 2πt`` swings forward on the way up and back on the
+    way down, crossing its own stroke (a loop) whenever ``r > w/4``. The vertical
+    excursion is up for an ordinary letter, much taller for an ascender and
+    below the line for a descender, so a line of these carries the rhythm of a
+    cursive hand without being one.
+    """
+    kind = rng.random()
+    w = xh * rng.uniform(0.7, 1.25)
+    if kind < 0.14:
+        h, sign, r = xh * rng.uniform(1.9, 2.5), -1, w * rng.uniform(0.32, 0.45)      # ascender loop
+    elif kind < 0.24:
+        h, sign, r = xh * rng.uniform(1.4, 1.9), 1, w * rng.uniform(0.3, 0.42)       # descender loop
+    elif kind < 0.62:
+        h, sign, r = xh * rng.uniform(0.8, 1.1), -1, w * rng.uniform(0.28, 0.4)      # small loop
+    else:
+        h, sign, r = xh * rng.uniform(0.7, 1.0), -1, w * rng.uniform(0.0, 0.18)      # hump
+    steps = 14
+    pts = []
+    for i in range(steps + 1):
+        t = i / steps
+        x = x0 + w * t + r * math.sin(2 * math.pi * t)
+        y = base + sign * h * (1 - math.cos(2 * math.pi * t)) / 2
+        pts.append((x, y))
+    return pts, x0 + w
+
+
+def _codex_script(draw: ImageDraw.ImageDraw, x: float, base: float, x_end: float, *,
+                  xh: float, rng: random.Random, fill, width: int = 1,
+                  max_words: int | None = None) -> float:
+    """Write a line of asemic script from ``x`` to at most ``x_end``.
+
+    Words of 2–7 letters joined in one continuous stroke, the pen lifted
+    between words; an occasional diacritic dot or hook above a letter, the
+    furniture every alphabet grows. Returns the x where the pen stopped.
+    """
+    words = 0
+    while x < x_end:
+        n = rng.randint(2, 7)
+        # Never start a word that cannot finish inside the line. The budget is
+        # the worst case, not the average: the widest letter (1.25 x-heights),
+        # plus the lead-in, the exit tail and the furthest a loop can swing
+        # past its letter's end — so the ink provably stops at ``x_end``.
+        if x + (n * 1.25 + _CODEX_WORD_OVERHEAD) * xh > x_end:
+            n = int((x_end - x) / xh - _CODEX_WORD_OVERHEAD) * 4 // 5
+            if n < 2:
+                break
+        pts = [(x, base)]
+        lead = xh * 0.35
+        pts.append((x + lead, base - xh * 0.25))
+        cx = x + lead
+        marks = []
+        for _ in range(n):
+            letter, cx = _codex_letter_points(cx, base, xh, rng)
+            pts.extend(letter[1:])
+            if rng.random() < 0.12:
+                marks.append((letter[len(letter) // 2][0], base - xh * 2.1))
+        pts.append((cx + xh * 0.4, base - xh * 0.2))
+        draw.line(pts, fill=fill, width=width, joint="curve")
+        for mx, my in marks:
+            if rng.random() < 0.5:
+                d = max(1, width)
+                draw.ellipse((mx - d, my - d, mx + d, my + d), fill=fill)
+            else:
+                draw.arc((mx - xh * 0.5, my - xh * 0.4, mx + xh * 0.5, my + xh * 0.4),
+                         200, 340, fill=fill, width=width)
+        x = cx + xh * rng.uniform(1.2, 1.9)
+        words += 1
+        if max_words is not None and words >= max_words:
+            break
+    return x
+
+
+def _codex_numeral(draw: ImageDraw.ImageDraw, x: float, base: float, digit: int, *,
+                   size: float, fill, width: int = 2) -> float:
+    """One of twenty-one invented digits, drawn from the bits of its value.
+
+    Zero is a bare ring. Every other digit is a curved stem whose features are
+    switched on by its five bits — a top loop, a foot hook, a crossbar, a dot, a
+    tail curl — so the twenty glyphs are pairwise distinct and a given digit is
+    always drawn the same way. Returns the advance.
+    """
+    s = size
+    if digit == 0:
+        draw.ellipse((x, base - s * 0.7, x + s * 0.6, base - s * 0.1), outline=fill, width=width)
+        return s * 0.85
+    stem = [(x + s * 0.15, base), (x + s * 0.35, base - s * 0.5), (x + s * 0.2, base - s)]
+    draw.line(stem, fill=fill, width=width, joint="curve")
+    if digit & 1:
+        draw.arc((x + s * 0.1, base - s * 1.15, x + s * 0.55, base - s * 0.75), 90, 450, fill=fill, width=width)
+    if digit & 2:
+        draw.arc((x - s * 0.1, base - s * 0.3, x + s * 0.35, base + s * 0.1), 0, 180, fill=fill, width=width)
+    if digit & 4:
+        draw.line((x, base - s * 0.55, x + s * 0.6, base - s * 0.45), fill=fill, width=width)
+    if digit & 8:
+        d = width + 0.5
+        cx, cy = x + s * 0.6, base - s * 0.85
+        draw.ellipse((cx - d, cy - d, cx + d, cy + d), fill=fill)
+    if digit & 16:
+        draw.arc((x + s * 0.25, base - s * 0.35, x + s * 0.75, base + s * 0.05), 270, 90, fill=fill, width=width)
+    return s * 0.95
+
+
+def codex_page_digits(time_str: str) -> list[int]:
+    """The minute of the day as base-21 digits, most significant first."""
+    hh, mm = (int(p) for p in time_str.split(":"))
+    value = hh * 60 + mm
+    digits = []
+    while True:
+        digits.append(value % _CODEX_NUMERAL_BASE)
+        value //= _CODEX_NUMERAL_BASE
+        if not value:
+            break
+    return digits[::-1]
+
+
+def _codex_ellipse_poly(cx: float, cy: float, a: float, b: float, angle: float, n: int = 28) -> list:
+    """A rotated ellipse as a polygon (PIL's ``ellipse`` cannot rotate)."""
+    ca, sa = math.cos(angle), math.sin(angle)
+    return [
+        (cx + a * math.cos(t) * ca - b * math.sin(t) * sa,
+         cy + a * math.cos(t) * sa + b * math.sin(t) * ca)
+        for t in (2 * math.pi * i / n for i in range(n))
+    ]
+
+
+def _codex_fill(image: Image.Image, polygon: list, spec: tuple, outline=SPECTRA6["black"], width: int = 1) -> None:
+    """Fill with a documented recipe, then ink the contour — coloured pencil
+    inside a pen line, the way every plate in the book is drawn."""
+    _vitrail_fill_polygon(image, polygon, spec)
+    if outline is not None:
+        ImageDraw.Draw(image).line(list(polygon) + [polygon[0]], fill=outline, width=width, joint="curve")
+
+
+def _codex_stem_point(t: float) -> tuple[float, float]:
+    """The stem's centreline: a gentle quadratic S from root to crown."""
+    (x0, y0), (x1, y1) = _CODEX_STEM_BASE, _CODEX_STEM_TOP
+    cx = x0 + 34
+    x = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t * t * x1
+    y = y0 + (y1 - y0) * t
+    return x, y
+
+
+def _codex_paint_roots(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """Sepia roots below an olive ground line, each curling into a spiral."""
+    bx, by = _CODEX_STEM_BASE
+    # Ground: short olive hatching, the mound the specimen stands on.
+    for i in range(-70, 72, 5):
+        h = 3 + int(4 * math.cos(i / 70 * math.pi / 2))
+        draw.line((bx + i, by + 2, bx + i + 3, by + 2 - h), fill=SPECTRA6["green"], width=1)
+    draw.line((bx - 78, by + 3, bx + 80, by + 3), fill=SPECTRA6["black"], width=1)
+    for k, dx in enumerate((-46, -20, 6, 30, 52)):
+        pts = [(bx + dx * 0.2, by + 4)]
+        x, y = bx + dx * 0.2, by + 4
+        for step in range(8):
+            x += dx * 0.12 + rng.uniform(-2, 2)
+            y += 4.2
+            pts.append((x, y))
+        # Spiral terminal: the root curls back on itself.
+        r = 5 + k % 3
+        start = math.atan2(0, 1)
+        for j in range(1, 16):
+            a = start + (1 if dx > 0 else -1) * j * 0.55
+            rr = r * (1 - j / 18)
+            pts.append((x + rr * math.cos(a) - r, y + rr * math.sin(a)))
+        draw.line(pts, fill=SPECTRA6["red"], width=3, joint="curve")
+    # Sepia post-pass: flip half the red root pixels to green, R+G 1:1.
+    px = image.load()
+    x0, y0 = max(0, bx - 90), by + 3
+    for yy in range(y0, min(image.height, by + 60)):
+        for xx in range(x0, min(image.width, bx + 90)):
+            if px[xx, yy] == SPECTRA6["red"] and (xx + yy) & 1:
+                px[xx, yy] = SPECTRA6["green"]
+
+
+def _codex_paint_stem(image: Image.Image, draw: ImageDraw.ImageDraw, band_offset: int) -> None:
+    """A tapering stem banded through the spectrum, inked on both flanks."""
+    n = 22
+    left, right = [], []
+    samples = []
+    for i in range(n + 1):
+        t = i / n
+        x, y = _codex_stem_point(t)
+        hw = 9 - 5 * t
+        samples.append((x, y, hw))
+    for i in range(n):
+        xa, ya, ha = samples[i]
+        xb, yb, hb = samples[i + 1]
+        band = (xa - ha, ya), (xa + ha, ya), (xb + hb, yb), (xb - hb, yb)
+        _vitrail_fill_polygon(image, list(band), _CODEX_BANDS[(i + band_offset) % len(_CODEX_BANDS)])
+        draw.line((xb - hb, yb, xb + hb, yb), fill=SPECTRA6["black"], width=1)
+        left.append((xa - ha, ya))
+        right.append((xa + ha, ya))
+    left.append((samples[-1][0] - samples[-1][2], samples[-1][1]))
+    right.append((samples[-1][0] + samples[-1][2], samples[-1][1]))
+    draw.line(left, fill=SPECTRA6["black"], width=2, joint="curve")
+    draw.line(right, fill=SPECTRA6["black"], width=2, joint="curve")
+
+
+def _codex_paint_fish_leaf(image: Image.Image, draw: ImageDraw.ImageDraw, ax: float, ay: float,
+                           side: int, spec: tuple, size: float) -> None:
+    """A leaf that is a fish: body, forked tail at the stem, scales, one eye.
+
+    The tail is the petiole — the fish grows out of the stem nose-first — which
+    is the Serafinian move: a familiar form (a leaf) that turns out, on a second
+    look, to be a different familiar form entirely.
+    """
+    angle = -0.5 if side > 0 else math.pi + 0.5
+    ca, sa = math.cos(angle), math.sin(angle)
+
+    def rot(u: float, v: float) -> tuple[float, float]:
+        return ax + u * ca - v * sa, ay + u * sa + v * ca
+
+    a, b = size, size * 0.42
+    tail_root = 10
+    tail = [rot(tail_root + 2, 0), rot(0, -b * 0.8), rot(4, 0), rot(0, b * 0.8)]
+    _codex_fill(image, tail, _CODEX_TANGERINE)
+    cx = tail_root + a
+    body = [rot(cx + a * math.cos(t), b * math.sin(t) * (0.75 + 0.25 * math.cos(t)))
+            for t in (2 * math.pi * i / 30 for i in range(30))]
+    _codex_fill(image, body, spec, width=2)
+    # Scale arcs: rows of small blue crescents along the flank.
+    for row in (-0.3, 0.2):
+        for k in range(3):
+            u = cx - a * 0.55 + k * a * 0.36
+            sx, sy = rot(u, row * b)
+            draw.arc((sx - 4, sy - 4, sx + 4, sy + 4), 0, 180, fill=SPECTRA6["blue"], width=1)
+    # Gill line and eye near the nose.
+    gx0, gy0 = rot(cx + a * 0.35, -b * 0.6)
+    gx1, gy1 = rot(cx + a * 0.42, b * 0.6)
+    draw.line((gx0, gy0, gx1, gy1), fill=SPECTRA6["black"], width=1)
+    ex, ey = rot(cx + a * 0.62, -b * 0.15)
+    draw.ellipse((ex - 3.5, ey - 3.5, ex + 3.5, ey + 3.5), fill=SPECTRA6["white"], outline=SPECTRA6["black"])
+    draw.ellipse((ex - 1.5, ey - 1.5, ex + 1.5, ey + 1.5), fill=SPECTRA6["black"])
+    # A dorsal fin, red, on the upper flank.
+    fin = [rot(cx - a * 0.3, -b * 0.9), rot(cx - a * 0.05, -b * 1.55), rot(cx + a * 0.2, -b * 0.95)]
+    _codex_fill(image, fin, ("solid", SPECTRA6["red"]))
+
+
+def _codex_paint_blossom(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """A corolla of alternating rose and violet petals round an open eye."""
+    cx, cy = _CODEX_STEM_TOP[0], _CODEX_STEM_TOP[1] - 36
+    petals = rng.choice((8, 9, 10, 11))
+    phase = rng.uniform(0, math.pi)
+    for i in range(petals):
+        a = phase + 2 * math.pi * i / petals
+        px_, py_ = cx + 34 * math.cos(a), cy + 34 * math.sin(a)
+        _codex_fill(image, _codex_ellipse_poly(px_, py_, 26, 11, a), _CODEX_PETAL_FILLS[i % 2], width=2)
+    # Inner tangerine ring of sepals.
+    for i in range(petals):
+        a = phase + math.pi / petals + 2 * math.pi * i / petals
+        px_, py_ = cx + 20 * math.cos(a), cy + 20 * math.sin(a)
+        _codex_fill(image, _codex_ellipse_poly(px_, py_, 11, 5, a, 16), _CODEX_TANGERINE)
+    # The eye: an almond of white sclera, a blue iris, a black pupil, a glint.
+    almond = [(cx - 24 + 48 * t, cy - 14 * math.sin(math.pi * t)) for t in (i / 16 for i in range(17))]
+    almond += [(cx + 24 - 48 * t, cy + 12 * math.sin(math.pi * t)) for t in (i / 16 for i in range(1, 16))]
+    _codex_fill(image, almond, ("solid", SPECTRA6["white"]), width=2)
+    draw.ellipse((cx - 10, cy - 10, cx + 10, cy + 10), fill=SPECTRA6["blue"], outline=SPECTRA6["black"])
+    draw.ellipse((cx - 4, cy - 4, cx + 4, cy + 4), fill=SPECTRA6["black"])
+    draw.rectangle((cx - 6, cy - 7, cx - 4, cy - 5), fill=SPECTRA6["white"])
+    # Lashes along the upper lid.
+    for t in (0.18, 0.34, 0.5, 0.66, 0.82):
+        x = cx - 24 + 48 * t
+        y = cy - 14 * math.sin(math.pi * t)
+        dx = (t - 0.5) * 10
+        draw.line((x, y, x + dx, y - 6), fill=SPECTRA6["black"], width=1)
+
+
+def _codex_paint_seeds(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """Striped seeds drifting off the crown on thread parachutes."""
+    cx, cy = _CODEX_STEM_TOP[0], _CODEX_STEM_TOP[1] - 36
+    for k in range(3):
+        sx = cx + 70 + k * 28 + rng.uniform(-6, 6)
+        sy = cy - 40 + k * 26 + rng.uniform(-6, 6)
+        seed = _codex_ellipse_poly(sx, sy, 7, 4, 1.1)
+        _codex_fill(image, seed, _CODEX_BANDS[(k * 2 + 1) % len(_CODEX_BANDS)])
+        top = (sx - 5, sy - 14)
+        for spread in (-8, -3, 3, 8):
+            draw.line((sx - 1, sy - 3, top[0] + spread, top[1]), fill=SPECTRA6["black"], width=1)
+        draw.arc((top[0] - 10, top[1] - 6, top[0] + 10, top[1] + 6), 180, 360, fill=SPECTRA6["black"], width=1)
+
+
+def _codex_paint_labels(draw: ImageDraw.ImageDraw, rng: random.Random, anchors: list) -> None:
+    """Dotted leaders from the specimen's parts to asemic labels — the
+    diagrammatic apparatus of an encyclopedia plate, captioned in a script
+    nobody can read."""
+    x_label = _CODEX_PLATE[2] - 58
+    for ax, ay in anchors:
+        y = ay
+        x = ax + 6
+        while x < x_label - 6:
+            draw.point((x, y), fill=SPECTRA6["black"])
+            x += 3
+        _codex_script(draw, x_label, y + 3, _CODEX_PLATE[2], xh=4, rng=rng,
+                      fill=SPECTRA6["black"], max_words=1)
+
+
+def _codex_paint_plate(image: Image.Image, rng: random.Random) -> None:
+    draw = ImageDraw.Draw(image)
+    _codex_paint_roots(image, draw, rng)
+    band_offset = rng.randrange(len(_CODEX_BANDS))
+    _codex_paint_stem(image, draw, band_offset)
+    leaf_ts = (0.18, 0.38, 0.58, 0.76)
+    anchors = []
+    for i, t in enumerate(leaf_ts):
+        x, y = _codex_stem_point(t)
+        side = 1 if i % 2 == 0 else -1
+        spec = _CODEX_LEAF_FILLS[(i + band_offset) % len(_CODEX_LEAF_FILLS)]
+        _codex_paint_fish_leaf(image, draw, x + side * (8 - 5 * t), y, side, spec, 32 - 6 * t)
+        if side > 0:
+            nose = 10 + 2 * (32 - 6 * t) + 4
+            anchors.append((x + nose * math.cos(-0.5) + 8, y + nose * math.sin(-0.5)))
+    _codex_paint_blossom(image, draw, rng)
+    _codex_paint_seeds(image, draw, rng)
+    _codex_paint_labels(draw, rng, anchors)
+    # Plate caption under the specimen, in the script.
+    _codex_script(draw, _CODEX_PLATE[0] + 40, _CODEX_PLATE[3] - 4, _CODEX_PLATE[2] - 40,
+                  xh=5, rng=rng, fill=SPECTRA6["black"])
+
+
+def _codex_paint_rainbow(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """A small rainbow beside the rubric heading, one foot dripping its bands
+    into a puddle — a Serafinian object, familiar and then not."""
+    cx, cy = _CODEX_RAINBOW_CENTRE
+    inks = (SPECTRA6["red"], SPECTRA6["yellow"], SPECTRA6["green"], SPECTRA6["blue"])
+    r = 40
+    for ink in inks:
+        draw.arc((cx - r, cy - r, cx + r, cy + r), 180, 360, fill=ink, width=5)
+        r -= 5
+    draw.arc((cx - 41, cy - 41, cx + 41, cy + 41), 180, 360, fill=SPECTRA6["black"], width=1)
+    draw.arc((cx - 20, cy - 20, cx + 20, cy + 20), 180, 360, fill=SPECTRA6["black"], width=1)
+    # The right foot runs: each band drips straight down into a puddle.
+    for k, ink in enumerate(inks):
+        x = cx + 38 - k * 5
+        drop = 10 + (k * 7) % 12
+        draw.line((x, cy, x, cy + drop), fill=ink, width=4)
+        draw.ellipse((x - 2, cy + drop - 1, x + 2, cy + drop + 4), fill=ink)
+    puddle = _codex_ellipse_poly(cx + 30, cy + 30, 16, 4, 0.0, 20)
+    _codex_fill(image, puddle, _CODEX_BANDS[5])
+    # The left foot is a pinned tab of paper: the rainbow is tacked to the page.
+    draw.ellipse((cx - 42, cy - 3, cx - 34, cy + 5), fill=SPECTRA6["red"], outline=SPECTRA6["black"])
+
+
+def _codex_paint_column(image: Image.Image, draw: ImageDraw.ImageDraw, rng: random.Random) -> None:
+    """The untranslated text: a red rubric heading and a paragraph of script
+    above the quote, and a further paragraph below it."""
+    x0, x1 = _CODEX_COLUMN
+    _codex_script(draw, x0 + 30, 58, x1 - 30, xh=8, rng=rng, fill=SPECTRA6["red"], width=2, max_words=4)
+    for i, base in enumerate((92, 112, 132)):
+        # The first two lines stop short of the rainbow vignette.
+        end = _CODEX_RAINBOW_CENTRE[0] - 58 if i < 2 else x0 + (x1 - x0) * rng.uniform(0.45, 0.8)
+        _codex_script(draw, x0 + (18 if i == 0 else 0), base, end, xh=5, rng=rng, fill=SPECTRA6["black"])
+    for i, base in enumerate((418, 438)):
+        end = x1 if i == 0 else x0 + (x1 - x0) * rng.uniform(0.4, 0.7)
+        _codex_script(draw, x0, base, end, xh=5, rng=rng, fill=SPECTRA6["black"])
+
+
+def _codex_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The one deciphered passage, in a pen hand, bracketed by blue rules."""
+    x0, y0, x1, y1 = _CODEX_QUOTE_RECT
+    quote = normalize_dashes(strip_underscore_emphasis(quote_row.get("display_quote") or ""))
+    regular, italic, lines, line_height, size = fit_quote(
+        draw, quote, quote_row.get("matched_text") or "", x1 - x0 - 16, y1 - y0 - 38,
+        38, 15, 1.2, theme="codex",
+    )
+    block = len(lines) * line_height
+    top = y0 + max(0, (y1 - y0 - 30 - block) // 2)
+    draw_centred_styled_lines(draw, lines, x0=x0, x1=x1, top=top, line_height=line_height,
+                              regular=regular, bold=italic, fill=SPECTRA6["black"],
+                              accent=SPECTRA6["red"], min_inset=8)
+    rule_y = top + block + 8
+    mid = (x0 + x1) // 2
+    draw.line((mid - 60, rule_y, mid + 60, rule_y), fill=SPECTRA6["blue"], width=1)
+    draw.polygon([(mid, rule_y - 4), (mid + 4, rule_y), (mid, rule_y + 4), (mid - 4, rule_y)],
+                 fill=SPECTRA6["red"])
+    byline = load_font(theme_font_candidates("codex", "quote_bold"), max(14, int(size * 0.55)))
+    draw_truncated_centred_byline(draw, quote_row, centre=mid, baseline=rule_y + 22,
+                                  max_width=x1 - x0 - 16, font=byline, fill=SPECTRA6["blue"])
+
+
+def _codex_paint_folio(draw: ImageDraw.ImageDraw, time_str: str) -> None:
+    """The page number, bottom outer corner, in base-21 Serafinian numerals
+    between two small flourishes."""
+    digits = codex_page_digits(time_str)
+    size = 20
+    advance = size * 0.95
+    total = len(digits) * advance
+    x = _CODEX_COLUMN[1] - total
+    base = 462
+    draw.arc((x - 24, base - 10, x - 6, base + 2), 200, 360, fill=SPECTRA6["blue"], width=1)
+    for d in digits:
+        x += _codex_numeral(draw, x, base, d, size=size, fill=SPECTRA6["red"])
+    draw.arc((x + 2, base - 10, x + 20, base + 2), 180, 340, fill=SPECTRA6["blue"], width=1)
+
+
+def render_codex_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """A page of the Codex Seraphinianus (see the module section comment above)."""
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["white"])
+    _codex_paint_page(image)
+    rng = random.Random(_row_digest(quote_row))
+    _codex_paint_plate(image, rng)
+    draw = ImageDraw.Draw(image)
+    _codex_paint_column(image, draw, rng)
+    _codex_paint_rainbow(image, draw)
+    _codex_paint_quote(image, draw, quote_row)
+    _codex_paint_folio(draw, time_str)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
 
 # ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
@@ -27106,6 +27650,8 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_photo_frame(time_str, quote_row, width, height)
     if theme == "control":
         return render_control_frame(time_str, quote_row, width, height)
+    if theme == "codex":
+        return render_codex_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)

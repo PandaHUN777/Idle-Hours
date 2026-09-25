@@ -243,6 +243,11 @@ THEME_SATURATION: dict[str, float] = {
     # chromatic-on-light profile as ``default`` / ``swiss``; the gentler tier
     # keeps the coral halo a stain rather than a fire-engine smear.
     "control": 0.5,
+    # Codex Seraphinianus — cream page, black script and pen-hand prose, a
+    # full-palette plant plate. White-ground tier: the plate's inks are
+    # already native or documented two-ink mixes, and pushing saturation
+    # harder would blot the 1 px asemic script lines.
+    "codex": 0.5,
     # Swiss International / modernist — white ground, black Inter body,
     # red accent. Same chromatic-on-light profile as ``default`` /
     # ``deco`` / ``dispatch`` / ``saloon`` / ``roman`` so the gentler

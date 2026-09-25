@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control")
+                             "control", "codex")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4116,3 +4116,139 @@ class TestControlFrame:
         )
         assert text.endswith("…") and len(text) > 20
         assert rq.tracked_width(draw, text, font, tracking=1) <= 300
+
+
+class TestCodexFrame:
+    """``codex`` — a page of Luigi Serafini's *Codex Seraphinianus*.
+
+    A chimerical plant plate, columns of generated asemic script, the quote as
+    the page's one deciphered passage, and the time as a base-21 page number in
+    invented numerals.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+    # Bottom-right page-number corner: the only region the clock may reach.
+    FOLIO_BOX = (640, 436, 800, 480)
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestCodexFrame.ROW)),
+                         *size, mode="production", theme="codex")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "codex" in rq.THEMES
+        assert "codex" in rq.THEME_ORDER
+        assert "codex" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["codex"] == 0.5
+        # Pen hand for the body, its italic for the phrase: no bold cut exists.
+        assert rq.theme_font_candidates("codex", "quote_regular")[0] == rq.FONDAMENTO_REGULAR
+        assert rq.theme_font_candidates("codex", "quote_bold")[0] == rq.FONDAMENTO_ITALIC
+        for path in (rq.FONDAMENTO_REGULAR, rq.FONDAMENTO_ITALIC):
+            assert pathlib.Path(path).exists()
+        assert (pathlib.Path(rq.FONDAMENTO_REGULAR).parent / "OFL.txt").exists()
+
+    def test_on_palette_and_deterministic(self):
+        first = self._render()
+        assert distinct_inks(first) <= set(rq.SPECTRA6_PALETTE)
+        assert pixel_bytes(first) == pixel_bytes(self._render())
+
+    def test_plate_surfaces_every_native_ink(self):
+        """The vibrancy is the plate's job: all six inks must be on the page."""
+        assert distinct_inks(self._render()) == set(rq.SPECTRA6_PALETTE)
+
+    @pytest.mark.parametrize("time_str, digits", [
+        ("00:00", [0]),
+        ("00:20", [20]),
+        ("00:21", [1, 0]),
+        ("07:21", [1, 0, 0]),          # 441 minutes = 21 squared
+        ("23:59", [3, 5, 11]),         # 1439 = 3*441 + 5*21 + 11
+    ])
+    def test_page_digits_are_base_21(self, time_str, digits):
+        assert rq.codex_page_digits(time_str) == digits
+
+    def test_page_number_round_trips_every_minute(self):
+        """A determined reader can decode the folio back to the time."""
+        for minute in range(24 * 60):
+            time_str = f"{minute // 60:02d}:{minute % 60:02d}"
+            digits = rq.codex_page_digits(time_str)
+            assert 1 <= len(digits) <= 3
+            assert all(0 <= d < 21 for d in digits)
+            value = 0
+            for d in digits:
+                value = value * 21 + d
+            assert value == minute
+
+    def test_numerals_are_twenty_one_distinct_glyphs(self):
+        """A numeral system needs every digit to be its own glyph, and the same
+        digit always drawn the same way."""
+        glyphs = []
+        for digit in range(21):
+            img = Image.new("L", (40, 40), 0)
+            rq._codex_numeral(ImageDraw.Draw(img), 10, 30, digit, size=20, fill=255)
+            glyphs.append(img.tobytes())
+            again = Image.new("L", (40, 40), 0)
+            rq._codex_numeral(ImageDraw.Draw(again), 10, 30, digit, size=20, fill=255)
+            assert again.tobytes() == glyphs[-1]
+            assert img.getbbox() is not None, f"digit {digit} draws nothing"
+        assert len(set(glyphs)) == 21
+
+    def test_time_reaches_only_the_folio(self):
+        """The page number is the time carrier; nothing else on the page may
+        move with the clock, or the frame would be a clock face rather than an
+        encyclopedia page."""
+        a = self._render(time_str="02:30")
+        b = self._render(time_str="19:47")
+        bbox = ImageChops.difference(a, b).getbbox()
+        assert bbox is not None, "the page number must change with the time"
+        x0, y0, x1, y1 = self.FOLIO_BOX
+        assert bbox[0] >= x0 and bbox[1] >= y0 and bbox[2] <= x1 and bbox[3] <= y1, bbox
+
+    def test_each_quote_gets_its_own_page_of_script(self):
+        other = dict(self.ROW, source_id="1342", line_number=99)
+        a = self._render()
+        b = self._render(row=other)
+        column = (344, 40, 660, 140)          # the script paragraph above the quote
+        assert pixel_bytes(a.crop(column)) != pixel_bytes(b.crop(column))
+
+    def test_script_never_overruns_its_line(self):
+        """The word budget is the worst case, so the ink provably stops at
+        ``x_end`` — a script line must not run into the rainbow vignette or off
+        the column."""
+        import random as _random
+        # Many short lines rather than a few long ones: an overrun is a
+        # worst-case event (every letter in the last word drawn at its widest),
+        # so the fence needs many line ends to sample it. Verified to fail with
+        # the word overhead zeroed.
+        img = Image.new("L", (160, 60), 0)
+        draw = ImageDraw.Draw(img)
+        for seed in range(1500):
+            draw.rectangle((0, 0, 160, 60), fill=0)
+            x_end = 40 + seed % 90
+            rq._codex_script(draw, 8, 36, x_end, xh=4 + seed % 5,
+                             rng=_random.Random(seed), fill=255)
+            bbox = img.getbbox()
+            assert bbox is None or bbox[2] <= x_end + 2, (seed, x_end, bbox)
+
+    def test_matched_phrase_is_red(self):
+        with_phrase = self._render()
+        without = self._render(row=dict(self.ROW, matched_text=""))
+        rect = rq._CODEX_QUOTE_RECT
+        red = rq.SPECTRA6["red"]
+        count = ink_counts(with_phrase.crop(rect)).get(red, 0)
+        base = ink_counts(without.crop(rect)).get(red, 0)
+        assert count > base + 150
+
+    def test_bare_row_renders(self):
+        """No author, no title, no source: the byline is simply omitted."""
+        img = rq.render_codex_frame("02:30", {"display_quote": "At half past two the moon rose.",
+                                              "matched_text": "half past two"}, 800, 480)
+        assert distinct_inks(img) <= set(rq.SPECTRA6_PALETTE)
