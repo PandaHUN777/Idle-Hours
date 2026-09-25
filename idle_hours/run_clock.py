@@ -256,6 +256,7 @@ def parse_args() -> argparse.Namespace:
         "control",
         "observation",
         "trisolaris",
+        "biomech",
         "diags",
     ]
     parser.add_argument(

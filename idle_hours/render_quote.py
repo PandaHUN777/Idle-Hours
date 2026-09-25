@@ -135,6 +135,7 @@ THEME_ORDER: tuple[str, ...] = (
     "control",
     "observation",
     "trisolaris",
+    "biomech",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -1258,6 +1259,23 @@ THEMES = {
         "ornament_light": SPECTRA6["yellow"],
         "source": SPECTRA6["white"],
     },
+    # H. R. Giger and Zdzisław Beksiński — a biomechanical portal onto a
+    # burning dusk. A custom frame (``render_biomech_frame``): an airbrushed
+    # K+W wall of vertebrae, ribbed hoses and skulls, lit as a procedural
+    # height field, framing a pointed arch through which a Beksiński ruin
+    # stands against a blood-red sky. Bone-white prose; the matched phrase is
+    # an ember — yellow core, red bloom. The literary-layout slots below serve
+    # only the goodnight / source-card fall-through paths.
+    "biomech": {
+        "page_bg": SPECTRA6["black"],
+        "text": SPECTRA6["white"],
+        "subtle": SPECTRA6["white"],
+        "faint": SPECTRA6["red"],
+        "accent": SPECTRA6["yellow"],
+        "ornament_dark": SPECTRA6["red"],
+        "ornament_light": SPECTRA6["red"],
+        "source": SPECTRA6["white"],
+    },
     # Wax-sealed letter. A quote presented as intimate handwritten
     # correspondence on a sheet of aged paper. White ``page_bg`` warmed
     # to a faint cream/vellum by ``draw_letter_border``'s Layer 0
@@ -1863,6 +1881,16 @@ TITILLIUM_REGULAR = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Regular.ttf
 TITILLIUM_SEMIBOLD = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-SemiBold.ttf")
 TITILLIUM_BOLD = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Bold.ttf")
 TITILLIUM_ITALIC = str(BASE_DIR / "fonts/titillium-web/TitilliumWeb-Italic.ttf")
+# Spectral (Production Type, OFL) — a cold, sharp-bracketed book serif whose
+# long hairline-free stems hold as bone-white on black; Medium body, SemiBold
+# matched phrase, Medium Italic byline. The text face of ``biomech``.
+SPECTRAL_MEDIUM = str(BASE_DIR / "fonts/spectral/Spectral-Medium.ttf")
+SPECTRAL_SEMIBOLD = str(BASE_DIR / "fonts/spectral/Spectral-SemiBold.ttf")
+SPECTRAL_MEDIUM_ITALIC = str(BASE_DIR / "fonts/spectral/Spectral-MediumItalic.ttf")
+# Grenze Gotisch (Renata Polastri / Omnibus-Type, OFL) — a blackletter/roman
+# hybrid with thorned, spurred terminals; variable Weight axis, named
+# instances pinned. The ``biomech`` plate label.
+GRENZE_GOTISCH_VARIABLE = str(BASE_DIR / "fonts/grenze-gotisch/GrenzeGotisch-Variable.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3592,6 +3620,28 @@ THEME_FONTS: dict[str, dict[str, list]] = {
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
+    "biomech": {
+        # Spectral — a cold, sharp book serif with sturdy stems: bone-white on
+        # black needs Medium to survive the palette snap, and the matched
+        # phrase steps to SemiBold under its ember bloom. Grenze Gotisch's
+        # thorned blackletter carries the ornament slot (the plate label and
+        # the fall-through quote marks). Falls back through the system serifs.
+        "quote_regular": [
+            SPECTRAL_MEDIUM,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+            *QUOTE_FONT_REGULAR_CANDIDATES,
+        ],
+        "quote_bold": [
+            SPECTRAL_SEMIBOLD,
+            "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            (GRENZE_GOTISCH_VARIABLE, "SemiBold"),
+            UNIFRAKTUR_BOOK,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
     "grimdark": {
         # Imperial Gothic = Roman + Gothic blackletter, the exact typographic
         # blend of the 40K Imperium. The body uses Cinzel Decorative (the
@@ -5235,6 +5285,101 @@ def paint_relief_mask(
             if not exterior_ok:
                 continue
             px[x, y] = highlight if shade > 0 else shadow
+
+
+# Sobel slopes for ``shade_height_field``, read as +d/dx and +d/dy. The Y
+# weights look upside down and the X weights do not, because
+# ``ImageFilter.Kernel`` applies its rows in reverse order but its columns as
+# written — measured against ramps, not assumed, and fenced by
+# ``TestShadeHeightField`` since a flipped sign silently moves the light to
+# the wrong corner. ``scale=2`` reports a unit ramp as 4 grey levels:
+# quarter-level slope resolution, which is what keeps a broad soft dome from
+# terracing into contour bands, at the cost of clipping slopes steeper than
+# 32 levels per pixel (a radius-4 blur of a solid shape).
+_SOBEL_X = ImageFilter.Kernel((3, 3), (-1, 0, 1, -2, 0, 2, -1, 0, 1), scale=2, offset=128)
+_SOBEL_Y = ImageFilter.Kernel((3, 3), (1, 2, 1, 0, 0, 0, -1, -2, -1), scale=2, offset=128)
+_HEIGHT_FIELD_LUTS: dict = {}
+
+
+def _height_field_lut(light, relief: float, ambient: float, diffuse: float,
+                      specular: float, shininess: float) -> bytes:
+    """A 65536-entry ``(gx << 8 | gy) → tone`` table: Blinn-Phong for every
+    slope pair the two Sobel images can report. Memoised per parameter set —
+    it is the only part of ``shade_height_field`` that runs Python maths per
+    *value* rather than per pixel, so building it once makes the per-pixel
+    pass a plain table lookup."""
+    key = (tuple(light), relief, ambient, diffuse, specular, shininess)
+    cached = _HEIGHT_FIELD_LUTS.get(key)
+    if cached is not None:
+        return cached
+    lx, ly, lz = light
+    norm = math.sqrt(lx * lx + ly * ly + lz * lz)
+    lx, ly, lz = lx / norm, ly / norm, lz / norm
+    hx, hy, hz = lx, ly, lz + 1.0                       # Blinn half-vector, viewer on +z
+    hn = math.sqrt(hx * hx + hy * hy + hz * hz)
+    hx, hy, hz = hx / hn, hy / hn, hz / hn
+    out = bytearray(65536)
+    for a in range(256):
+        nx = -(a - 128) * relief
+        for b in range(256):
+            ny = -(b - 128) * relief
+            inv = 1.0 / math.sqrt(nx * nx + ny * ny + 1.0)
+            ndl = (nx * lx + ny * ly + lz) * inv
+            ndh = (nx * hx + ny * hy + hz) * inv
+            tone = ambient + diffuse * max(0.0, ndl)
+            if ndh > 0.0:
+                tone += specular * ndh ** shininess
+            out[a << 8 | b] = max(0, min(255, int(tone * 255 + 0.5)))
+    table = bytes(out)
+    _HEIGHT_FIELD_LUTS[key] = table
+    return table
+
+
+def shade_height_field(
+    height: Image.Image,
+    *,
+    light=(-0.55, -0.62, 0.56),
+    relief: float = 0.025,
+    ambient: float = 0.1,
+    diffuse: float = 0.85,
+    specular: float = 0.7,
+    shininess: float = 28.0,
+) -> Image.Image:
+    """Render an ``"L"`` height field as a lit continuous-tone surface.
+
+    The eighth tone axis (``docs/spectra6_color_recipes.md``), and the first
+    that is a *3-D render* rather than a stipple rule: a whole surface — not a mask's edge — is given
+    a normal at every pixel and shaded Blinn-Phong under one light, then left
+    as continuous tone for error diffusion to carry onto the inks. That is what
+    an airbrush does, and it is why ``biomech`` exists: Giger's surfaces are
+    smooth gradients with hot specular glints on wet chrome and bone, which no
+    constant-density recipe, falling-density bloom or rank partition can fake.
+
+    How it differs from ``paint_relief_mask``, the nearest relative: that
+    primitive lights the blurred *edge* of a flat mask and writes ink by a
+    density rule, per pixel in Python — right for a raised letter. This one
+    takes an arbitrary height field built by the caller (blurred shapes unioned
+    with ``ImageChops.lighter``, carved with ``subtract``) and returns *tone*,
+    leaving the ink decision to ``dither_image_to_palette``. Everything that
+    touches every pixel is C-speed: the two slopes are 3x3 Sobel
+    ``ImageFilter.Kernel`` passes (a unit ramp reads as four grey levels,
+    ``offset=128`` keeps the sign), and the shading is a
+    single lookup into a memoised 65536-entry table indexed by the slope pair.
+
+    ``light`` is screen-space (x right, y down, z toward the viewer) — the
+    house upper-left convention. ``relief`` converts height units per pixel
+    into normal tilt, per Sobel level (four per unit of slope): a field blurred
+    at radius *r* has slopes near ``255/(2r)`` at its steepest, so the default
+    makes a radius-5 dome turn through most of a hemisphere. A flat pixel shades to ``ambient + diffuse *
+    lz`` — mid-grey, not black; darken recesses by multiplying the result
+    against the height itself, which is the caller's business because *how*
+    dark a recess goes is a matter of style.
+    """
+    gx = height.filter(_SOBEL_X).tobytes()
+    gy = height.filter(_SOBEL_Y).tobytes()
+    lut = _height_field_lut(tuple(light), relief, ambient, diffuse, specular, shininess)
+    tone = bytes(lut[a << 8 | b] for a, b in zip(gx, gy))
+    return Image.frombytes("L", height.size, tone)
 
 
 def _flow_stroke_hash(cx: int, cy: int, salt: int) -> float:
@@ -25318,6 +25463,516 @@ def render_trisolaris_frame(time_str: str, quote_row: dict, width: int, height: 
     return image
 
 
+# ---------------------------------------------------------------------------
+# biomech — H. R. Giger's biomechanical wall round a Beksiński dusk
+# ---------------------------------------------------------------------------
+# Two painters who never shared a canvas, and share one here because each
+# supplies what the other lacks. Giger's work is *surface*: airbrushed
+# monochrome flesh-machinery — vertebrae stacked like pistons, corrugated
+# hoses, elongated skulls — every form lit so it reads as wet bone and chrome.
+# Beksiński's is *distance*: burning dusks over desolate plains, cathedrals
+# built of something that was once alive, shrouded figures, leaning crosses,
+# everything dissolving into haze. So the page is a portal: a pointed arch cut
+# through a Giger wall, and through it a Beksiński evening.
+#
+# **Two render-time "plates", neither committed.** Every other theme that
+# dithers continuous tone (``anna_atkins``, ``grimdark``, ``letter``,
+# ``daguerreotype``, ``autochrome``, ``control``) ships a PNG and dithers it on
+# load. This one *paints* both plates procedurally in continuous tone and
+# dithers them in-process:
+#
+# * **The wall is a lit height field** — the reason ``shade_height_field``
+#   exists. Blurred shapes unioned with ``ImageChops.lighter`` give each form a
+#   rounded profile (a line blurred to a third of its width is a tube, an
+#   ellipse blurred is a dome); carving is ``ImageChops.subtract`` (eye
+#   sockets, the grooves of a corrugated hose). The field is shaded
+#   Blinn-Phong under the house upper-left light, darkened by its own height
+#   (recesses fall to black, which is Giger's depth cue) and by a cavity term
+#   (blurred minus sharp), then Floyd-Steinberg-dithered to **white + black
+#   only**. The airbrush survives as a fine grain whose density tracks the
+#   tone, and specular glints blow to clean white. The wall is restricted to
+#   K+W for the reason ``daguerreotype``'s plate is: a neutral grey sits
+#   almost equidistant from black, white *and* red in RGB, so a four-ink
+#   dither would scatter red specks through the bone.
+# * **The red is rim light, not pigment.** A second shading pass lights the
+#   wall from the portal — from the right on the left pier, from the left on
+#   the right — and where that light rakes a surface, red is stippled in at a
+#   density following it (a ``BAYER_8x8`` threshold, composited C-speed). The
+#   burning sky is *reflected* on the machinery, which is what ties the two
+#   halves of the page into one space instead of a frame pasted round a
+#   picture.
+# * **The dusk is painted, then dithered to K/R/Y/W.** A per-row gradient
+#   (black zenith, blood-red middle sky, a molten horizon), streaked cloud
+#   modulation from stretched seeded noise, a half-set sun, then silhouettes
+#   in atmospheric perspective — each layer's colour is black mixed toward the
+#   sky behind it, the further the more — and a low fog over the horizon.
+#   Beksiński's palette is exactly these four inks' territory; blue and green
+#   are left out so error diffusion cannot cool the fire.
+#
+# Both plates are quote-independent, so the composed background is built once
+# per process (``_BIOMECH_BACKGROUND``) and every render pastes text over a
+# copy — the 144-frame contact sheet pays for the painting once.
+#
+# **The quote** sits in the dark upper sky, where the zenith gradient is
+# nearly black: bone-white Spectral with a 2 px black halo (the ``anna_atkins``
+# answer — a halo, not a panel, so the arch keeps its view), and the matched
+# phrase an ember — solid yellow core, red bloom through ``paint_neon_mask``
+# with ``ground`` pinned to black so the glow can only spill onto the night.
+#
+# **The time is the plate's title, hour only**: ``BIOMECHANOID · XI`` on the
+# sill's cartouche. Giger titled whole series with Roman numerals, so a number
+# on the plate is the work's own furniture rather than a clock bolted on — the
+# ``tarot`` / ``plaque`` posture. The minute stays with the matched phrase,
+# pinned byte-identical across the minutes of an hour by ``TestBiomechFrame``.
+#
+# Composed at the canonical 800x480 and NEAREST-downsampled for a non-native
+# request — the ``metro`` convention.
+# ---------------------------------------------------------------------------
+_BIOMECH_ARCH = (126, 674, 96, 12, 452)     # left x, right x, springline y, apex y, sill y
+_BIOMECH_QUOTE_RECT = (172, 58, 628, 262)
+_BIOMECH_HORIZON = 372
+_BIOMECH_SUN = (402, 356, 42)               # centre x, centre y, radius
+_BIOMECH_BYLINE_BASELINE = 440
+_BIOMECH_PLATE = (306, 457, 494, 477)
+_BIOMECH_SEED = 0xB10
+_BIOMECH_SCENE_PALETTE = [SPECTRA6["black"], SPECTRA6["red"], SPECTRA6["yellow"], SPECTRA6["white"]]
+_BIOMECH_WALL_PALETTE = [SPECTRA6["black"], SPECTRA6["white"]]
+# The dusk, as (y, rgb) stops interpolated per row: a near-black zenith the
+# quote can sit on, a blood-red middle sky, a molten band at the horizon, and
+# a ground that falls back to black toward the sill.
+_BIOMECH_SKY_STOPS = (
+    (0, (0, 0, 0)), (168, (0, 0, 0)), (236, (52, 3, 2)), (292, (138, 14, 6)),
+    (334, (206, 58, 12)), (360, (246, 140, 36)), (_BIOMECH_HORIZON, (255, 196, 92)),
+)
+_BIOMECH_GROUND_STOPS = ((_BIOMECH_HORIZON, (96, 16, 6)), (404, (34, 4, 2)), (480, (4, 0, 0)))
+# The ruined cathedral's spires, as (centre x, half width, top y). The tallest
+# stands in front of the sun so it reads against the brightest thing on the page.
+_BIOMECH_SPIRES = (
+    (344, 3, 328), (356, 5, 306), (368, 3, 320), (381, 6, 292), (402, 9, 268),
+    (421, 5, 296), (434, 3, 318), (447, 5, 304), (459, 3, 330),
+)
+# Crosses on the horizon to the left, as (x, height, lean): stood against the
+# brightest band of sky so a thin black stroke still reads.
+_BIOMECH_CROSSES = ((172, 30, -3), (206, 24, 2), (236, 19, -2), (262, 15, 3), (284, 12, -1), (302, 9, 1))
+_BIOMECH_BACKGROUND: dict = {}
+
+
+def _biomech_hour(time_str: str) -> int:
+    try:
+        hour = int(str(time_str).split(":", 1)[0])
+    except ValueError:
+        hour = 12
+    return hour % 12 or 12
+
+
+def _biomech_arch_halfwidth(y: float) -> float:
+    """Half the opening's width at row ``y``: straight piers below the
+    springline, then a curve that closes to a point at the apex."""
+    left, right, spring, apex, _ = _BIOMECH_ARCH
+    half = (right - left) / 2
+    if y >= spring:
+        return half
+    if y <= apex:
+        return 0.0
+    t = (spring - y) / (spring - apex)
+    return half * (1 - t ** 1.7) ** 0.62
+
+
+def _biomech_arch_outline(offset: float = 0.0) -> list[tuple[float, float]]:
+    """The opening's edge from the left sill up over the apex to the right
+    sill, pushed ``offset`` px outward (into the wall)."""
+    left, right, spring, apex, sill = _BIOMECH_ARCH
+    cx = (left + right) / 2
+    ys = [sill - i for i in range(0, int(sill - apex) + 1, 4)] + [apex]
+    side = [(cx - _biomech_arch_halfwidth(y) - offset, y) for y in ys]
+    side[-1] = (cx, apex - offset)
+    return side + [(2 * cx - x, y) for x, y in reversed(side[:-1])]
+
+
+def _biomech_opening_mask(size) -> Image.Image:
+    mask = Image.new("L", size, 0)
+    ImageDraw.Draw(mask).polygon([(round(x), round(y)) for x, y in _biomech_arch_outline()], fill=255)
+    return mask
+
+
+def _biomech_lerp_stops(stops, y: float):
+    for (y0, c0), (y1, c1) in zip(stops, stops[1:]):
+        if y <= y1:
+            t = 0.0 if y1 == y0 else max(0.0, (y - y0) / (y1 - y0))
+            return tuple(round(a + (b - a) * t) for a, b in zip(c0, c1))
+    return stops[-1][1]
+
+
+def _biomech_haze(colour, amount: float):
+    """Black pushed ``amount`` of the way toward ``colour`` — how far a
+    silhouette has dissolved into the air in front of it."""
+    return tuple(round(c * amount) for c in colour)
+
+
+def _biomech_smooth_noise(size, cells, seed: int) -> Image.Image:
+    """Seeded value noise: a coarse grid of white noise, bicubic-upsampled.
+    ``cells`` is the grid's (columns, rows), so an unequal pair stretches the
+    noise into streaks."""
+    return _tarot_noise(cells[0], cells[1], seed).resize(size, Image.Resampling.BICUBIC)
+
+
+def _biomech_paint_sky(image: Image.Image) -> None:
+    """The dusk and the ground: per-row gradient, streaked cloud, a half-set sun."""
+    width, height = image.size
+    column = Image.new("RGB", (1, height))
+    for y in range(height):
+        stops = _BIOMECH_SKY_STOPS if y <= _BIOMECH_HORIZON else _BIOMECH_GROUND_STOPS
+        column.putpixel((0, y), _biomech_lerp_stops(stops, y))
+    base = column.resize((width, height), Image.Resampling.NEAREST)
+
+    # Cloud: long horizontal streaks, brightening and darkening the middle sky
+    # only — the zenith stays black for the quote, the horizon stays molten.
+    envelope = Image.new("L", (1, height))
+    for y in range(height):
+        e = 0.0
+        if 170 < y < _BIOMECH_HORIZON:
+            e = math.sin(math.pi * (y - 170) / (_BIOMECH_HORIZON - 170)) ** 1.4
+        envelope.putpixel((0, y), round(255 * e))
+    envelope = envelope.resize((width, height), Image.Resampling.NEAREST)
+    streaks = _biomech_smooth_noise((width, height), (9, 38), _BIOMECH_SEED)
+    light = ImageChops.multiply(streaks.point(lambda v: max(0, v - 132) * 3), envelope)
+    dark = ImageChops.multiply(streaks.point(lambda v: max(0, 112 - v) * 3), envelope)
+    bright = ImageEnhance.Brightness(base).enhance(1.9)
+    image.paste(Image.composite(bright, base, light))
+    image.paste(Image.composite(ImageEnhance.Brightness(image).enhance(0.35), image, dark))
+
+    # Sun: a wide glow and a pale disc, half set behind the horizon.
+    sx, sy, sr = _BIOMECH_SUN
+    glow = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(glow).ellipse((sx - sr * 2.6, sy - sr * 2.2, sx + sr * 2.6, sy + sr * 2.2), fill=150)
+    sky = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(sky).rectangle((0, 0, width, _BIOMECH_HORIZON), fill=255)
+    glow = ImageChops.multiply(glow.filter(ImageFilter.GaussianBlur(sr)), sky)
+    image.paste(Image.composite(Image.new("RGB", (width, height), (255, 214, 120)), image, glow))
+    disc = Image.new("L", (width, height), 0)
+    ImageDraw.Draw(disc).ellipse((sx - sr, sy - sr, sx + sr, sy + sr), fill=255)
+    image.paste((255, 244, 206), (0, 0), ImageChops.multiply(disc.filter(ImageFilter.GaussianBlur(2)), sky))
+
+
+def _biomech_paint_landscape(image: Image.Image) -> None:
+    """Beksiński's distance: a far ridge, a cathedral of bone spires against
+    the sun, a shrouded giant, leaning crosses, then a fog over the horizon."""
+    width, height = image.size
+    draw = ImageDraw.Draw(image)
+    hz = _BIOMECH_HORIZON
+    horizon_sky = _biomech_lerp_stops(_BIOMECH_SKY_STOPS, 330)
+    rng = random.Random(_BIOMECH_SEED)
+
+    # Far ridge: a low ragged line, most dissolved into the air.
+    ridge = [(0, hz + 2)]
+    for x in range(0, width + 12, 12):
+        ridge.append((x, hz - 2 - rng.random() * 9 - (7 if 520 < x < 640 else 0)))
+    ridge.append((width, hz + 2))
+    draw.polygon([(round(x), round(y)) for x, y in ridge], fill=_biomech_haze(horizon_sky, 0.52))
+
+    # The shrouded giant, right of centre: a hooded figure, half-hazed.
+    gx, top = 574, 280
+    giant = _biomech_haze(horizon_sky, 0.26)
+    draw.ellipse((gx - 6, top, gx + 8, top + 16), fill=giant)             # hood
+    shroud = [(gx - 5, top + 10), (gx + 9, top + 9), (gx + 13, top + 26), (gx + 12, top + 60),
+              (gx + 19, hz)]
+    for i in range(8):
+        shroud.append((gx + 19 - i * 5, hz - (3 if i % 2 else 10)))
+    shroud += [(gx - 21, hz - 5), (gx - 13, top + 58), (gx - 11, top + 26)]
+    draw.polygon([(round(x), round(y)) for x, y in shroud], fill=giant)
+
+    # The cathedral: organ-pipe spires of bone, eroded and thorned, a low
+    # nave, lancets lit by the sun behind.
+    near = (6, 1, 0)
+    draw.polygon([(330, hz + 3), (336, 346), (350, 336), (452, 336), (468, 348), (474, hz + 3)], fill=near)
+    for cx, hw, sy in _BIOMECH_SPIRES:
+        jag = rng.random() * 4
+        draw.polygon([(cx - hw, hz + 3), (cx - hw, sy + hw * 5), (cx - hw * 0.4, sy + hw * 2 + jag),
+                      (cx, sy), (cx + hw * 0.5, sy + hw * 2), (cx + hw, sy + hw * 5 + jag),
+                      (cx + hw, hz + 3)], fill=near)
+        for k in range(4):                                          # thorns
+            ty = sy + hw * 5 + 8 + k * 11
+            if ty < 336:
+                side = -1 if (k + cx) % 2 else 1
+                draw.polygon([(cx + side * hw, ty), (cx + side * (hw + 4), ty - 7),
+                              (cx + side * hw, ty + 3)], fill=near)
+    for wx in (356, 381, 402, 421, 447):                            # lancets, lit from behind
+        draw.polygon([(wx - 2, 362), (wx - 2, 350), (wx, 345), (wx + 2, 350), (wx + 2, 362)],
+                     fill=(250, 170, 50))
+
+    # Crosses on the horizon, leaning, receding.
+    for cx, h, lean in _BIOMECH_CROSSES:
+        w = 2 if h > 16 else 1
+        draw.line([(cx, hz + 1), (cx + lean, hz - h)], fill=near, width=w)
+        ay = hz - h * 0.72
+        arm = h * 0.3
+        draw.line([(cx + lean * 0.7 - arm, ay), (cx + lean * 0.7 + arm, ay - lean * 0.3)], fill=near, width=w)
+
+    # Fog: a low band across the horizon, streaked, veiling every base.
+    fog = Image.new("L", (1, height))
+    for y in range(height):
+        fog.putpixel((0, y), round(150 * math.exp(-((y - hz + 2) / 9.0) ** 2)))
+    fog = ImageChops.multiply(fog.resize((width, height), Image.Resampling.NEAREST),
+                              _biomech_smooth_noise((width, height), (14, 60), _BIOMECH_SEED + 1))
+    fog = fog.point(lambda v: min(255, v * 2))
+    image.paste(Image.composite(Image.new("RGB", (width, height), (168, 40, 14)), image, fog))
+
+
+def _biomech_layer(size, paint, blur: float, peak: int) -> Image.Image:
+    """One form of the wall: painted solid, blurred into a rounded profile,
+    scaled to its height. ``paint`` receives an ``ImageDraw`` on an ``"L"`` layer."""
+    layer = Image.new("L", size, 0)
+    paint(ImageDraw.Draw(layer))
+    layer = layer.filter(ImageFilter.GaussianBlur(blur))
+    return layer if peak >= 255 else layer.point(lambda v: v * peak // 255)
+
+
+def _biomech_resample(points, step: float):
+    """Points every ``step`` px of arc length along a polyline, with the unit
+    normal there — where a corrugated hose's grooves go."""
+    out = []
+    carry = 0.0
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        seg = math.hypot(x1 - x0, y1 - y0)
+        if seg == 0:
+            continue
+        ux, uy = (x1 - x0) / seg, (y1 - y0) / seg
+        d = carry
+        while d < seg:
+            out.append((x0 + ux * d, y0 + uy * d, -uy, ux))
+            d += step
+        carry = d - seg
+    return out
+
+
+def _biomech_hose(size, points, width: int, peak: int, pitch: float) -> Image.Image:
+    """A corrugated hose: a blurred line for the tube, grooves carved across
+    it every ``pitch`` px so the light picks out each rib."""
+    pts = [(round(x), round(y)) for x, y in points]
+    tube = _biomech_layer(size, lambda d: d.line(pts, fill=255, width=width, joint="curve"),
+                          width * 0.26, peak)
+    if pitch:
+        half = width / 2 + 1
+        grooves = _biomech_layer(size, lambda d: [
+            d.line([(round(x - nx * half), round(y - ny * half)), (round(x + nx * half), round(y + ny * half))],
+                   fill=255, width=2)
+            for x, y, nx, ny in _biomech_resample(points, pitch)], 0.8, int(peak * 0.3))
+        tube = ImageChops.subtract(tube, grooves)
+    return tube
+
+
+def _biomech_skull(size, cx: int, top: int) -> Image.Image:
+    """An elongated skull crowning a pier: cranium dome, carved sockets, a
+    nasal cavity and a row of teeth."""
+    head = _biomech_layer(size, lambda d: (
+        d.ellipse((cx - 32, top, cx + 32, top + 70), fill=255),
+        d.ellipse((cx - 24, top + 46, cx + 24, top + 92), fill=255)), 5, 236)
+    sockets = _biomech_layer(size, lambda d: (
+        d.ellipse((cx - 23, top + 44, cx - 5, top + 62), fill=255),
+        d.ellipse((cx + 5, top + 44, cx + 23, top + 62), fill=255),
+        d.polygon([(cx - 4, top + 72), (cx + 4, top + 72), (cx, top + 64)], fill=255)), 2.2, 220)
+    head = ImageChops.subtract(head, sockets)
+    teeth = _biomech_layer(size, lambda d: [
+        d.rounded_rectangle((cx - 15 + i * 6, top + 78, cx - 11 + i * 6, top + 89), radius=2, fill=255)
+        for i in range(6)], 1.0, 250)
+    return ImageChops.lighter(head, teeth)
+
+
+def _biomech_vertebrae(size, cx: int, y0: int, y1: int, pitch: int) -> Image.Image:
+    """A spinal column: stacked vertebral bodies, each with a spinous knob and
+    two transverse processes swept downward."""
+    def paint_bodies(d):
+        for y in range(y0, y1, pitch):
+            d.rounded_rectangle((cx - 23, y - 10, cx + 23, y + 10), radius=9, fill=255)
+
+    def paint_processes(d):
+        for y in range(y0, y1, pitch):
+            for s in (-1, 1):
+                d.line([(cx + s * 20, y), (cx + s * 40, y + 7), (cx + s * 46, y + 14)], fill=255, width=6,
+                       joint="curve")
+
+    def paint_knobs(d):
+        for y in range(y0, y1, pitch):
+            d.ellipse((cx - 7, y - 7, cx + 7, y + 7), fill=255)
+
+    bodies = _biomech_layer(size, paint_bodies, 3.6, 214)
+    processes = _biomech_layer(size, paint_processes, 2.0, 176)
+    knobs = _biomech_layer(size, paint_knobs, 2.0, 250)
+    return ImageChops.lighter(ImageChops.lighter(bodies, processes), knobs)
+
+
+def _biomech_height_field(size, opening: Image.Image) -> Image.Image:
+    """The Giger wall as heights: a textured ground plane, then piers of
+    vertebrae and hoses crowned by skulls, a ribbed archivolt round the
+    opening, tendrils in the spandrels and a hose along the sill."""
+    width, height = size
+    left, right, _, _, sill = _BIOMECH_ARCH
+    wall = ImageOps.invert(opening)
+    grain = _biomech_smooth_noise(size, (width // 3, height // 3), _BIOMECH_SEED + 2)
+    flesh = _biomech_smooth_noise(size, (width // 26, height // 26), _BIOMECH_SEED + 3)
+    ground = ImageChops.add(grain.point(lambda v: v * 34 // 255), flesh.point(lambda v: 40 + v * 60 // 255))
+    field = ImageChops.multiply(ground, wall.filter(ImageFilter.GaussianBlur(2)))
+
+    forms = []
+    for cx in (left // 2, (right + width) // 2):
+        forms.append(_biomech_skull(size, cx, 8))
+        forms.append(_biomech_vertebrae(size, cx, 118, sill - 6, 27))
+        for dx, phase in ((-47, 0.0), (47, 1.7)):
+            pts = [(cx + dx + 4 * math.sin(y / 23 + phase), y) for y in range(96, sill + 4, 6)]
+            forms.append(_biomech_hose(size, pts, 14, 224, 6))
+    rim = _biomech_arch_outline(9)
+    forms.append(_biomech_hose(size, rim, 15, 244, 13))
+    forms.append(_biomech_hose(size, _biomech_arch_outline(31), 12, 214, 6))
+    # Spandrel tendrils: hoses sweeping out of the top edge and down the arch.
+    for sx, ex, drop in ((140, 262, 46), (178, 330, 22), (660, 538, 46), (622, 470, 22)):
+        pts = [(sx + (ex - sx) * t, -8 + drop * t * t + 6 * math.sin(t * 6)) for t in [i / 20 for i in range(21)]]
+        forms.append(_biomech_hose(size, pts, 12, 206, 5))
+    forms.append(_biomech_hose(size, [(-10, sill + 16), (width + 10, sill + 16)], 20, 230, 6))
+    for form in forms:
+        field = ImageChops.lighter(field, form)
+    # Nothing of the wall stands inside the opening, but the rim may overhang it.
+    return ImageChops.multiply(field, ImageChops.lighter(wall, _biomech_rim_overhang(size)))
+
+
+def _biomech_rim_overhang(size) -> Image.Image:
+    """The archivolt's inner lip: a band just inside the opening where the
+    rim is allowed to overhang the view."""
+    band = Image.new("L", size, 0)
+    ImageDraw.Draw(band).line([(round(x), round(y)) for x, y in _biomech_arch_outline(9)],
+                              fill=255, width=26, joint="curve")
+    return band
+
+
+def _biomech_bayer_field(size) -> Image.Image:
+    """``BAYER_8x8`` tiled across the canvas as an ``"L"`` image of rank
+    thresholds, so a density map can be stippled with one C-speed compare."""
+    width, height = size
+    rows = [bytes(BAYER_8x8[r][x % 8] * 4 + 2 for x in range(width)) for r in range(8)]
+    return Image.frombytes("L", size, b"".join(rows[y % 8] for y in range(height)))
+
+
+def _biomech_paint_wall(image: Image.Image, opening: Image.Image) -> None:
+    """Shade the height field, dither it to K+W, stipple in the red rim light
+    from the portal, and lay it over the scene outside the opening."""
+    size = image.size
+    width = size[0]
+    field = _biomech_height_field(size, opening)
+    tone = shade_height_field(field, relief=0.03, ambient=0.06, diffuse=0.9, specular=0.85, shininess=22)
+    # Recesses fall to black: the ground plane sits low and dark, only the
+    # forms stand up into the light.
+    depth = field.point(lambda v: round(255 * min(1.0, max(0.0, v - 28) / 172) ** 1.25))
+    cavity = ImageChops.subtract(field.filter(ImageFilter.GaussianBlur(5)), field)
+    tone = ImageChops.multiply(tone, depth)
+    tone = ImageChops.multiply(tone, cavity.point(lambda v: 255 - min(255, v * 5)))
+    wall = dither_image_to_palette(tone.convert("RGB"), _BIOMECH_WALL_PALETTE)
+
+    # Rim light from the fire: each pier lit from the portal side, low.
+    rim_l = shade_height_field(field, light=(0.9, 0.25, 0.25), relief=0.03,
+                               ambient=0.0, diffuse=1.0, specular=0.0, shininess=1)
+    rim_r = shade_height_field(field, light=(-0.9, 0.25, 0.25), relief=0.03,
+                               ambient=0.0, diffuse=1.0, specular=0.0, shininess=1)
+    side = Image.new("L", size, 0)
+    ImageDraw.Draw(side).rectangle((0, 0, width // 2, size[1]), fill=255)
+    rim = Image.composite(rim_l, rim_r, side)
+    near_portal = opening.filter(ImageFilter.GaussianBlur(28)).point(lambda v: min(255, v * 3))
+    rim = ImageChops.multiply(rim.point(lambda v: max(0, v - 132) * 2), depth)
+    rim = ImageChops.multiply(rim, near_portal)
+    red = ImageChops.subtract(rim, _biomech_bayer_field(size)).point(lambda v: 255 if v else 0)
+    wall.paste(SPECTRA6["red"], (0, 0), red)
+
+    solid = ImageChops.lighter(ImageOps.invert(opening), field.point(lambda v: 255 if v > 150 else 0))
+    image.paste(wall, (0, 0), solid)
+
+
+def _biomech_background() -> Image.Image:
+    """The quote-independent frame: dusk + wall, painted and dithered once.
+
+    Keyed on the painter functions themselves, looked up at call time, and
+    holding one entry. A plain "built yet?" flag would hand a test that
+    neuters ``_biomech_paint_wall`` the frame painted before the patch — the
+    structural decoration fences would then measure a cache, not a painter,
+    and pass against a painter that paints nothing.
+    """
+    key = (_biomech_paint_sky, _biomech_paint_landscape, _biomech_paint_wall)
+    cached = _BIOMECH_BACKGROUND.get("frame")
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    size = (800, 480)
+    scene = Image.new("RGB", size, SPECTRA6["black"])
+    _biomech_paint_sky(scene)
+    _biomech_paint_landscape(scene)
+    image = dither_image_to_palette(scene, _BIOMECH_SCENE_PALETTE)
+    _biomech_paint_wall(image, _biomech_opening_mask(size))
+    _BIOMECH_BACKGROUND["frame"] = (key, image)
+    return image
+
+
+def _biomech_halo_paste(image: Image.Image, mask: Image.Image, fill, halo: int = 5) -> None:
+    """Paste ``fill`` through ``mask`` over a black halo grown from it."""
+    hard = mask.point(lambda v: 255 if v > 110 else 0)
+    image.paste(SPECTRA6["black"], (0, 0), hard.filter(ImageFilter.MaxFilter(halo)))
+    if fill is not None:
+        image.paste(fill, (0, 0), hard)
+
+
+def _biomech_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """Bone-white prose over a black halo; the matched phrase an ember."""
+    prose, hot, _ = wrap_quote_into_masks(
+        draw, image.size, quote_row, _BIOMECH_QUOTE_RECT, theme="biomech",
+        font_max=42, font_min=14, line_height_mult=1.3,
+    )
+    _biomech_halo_paste(image, ImageChops.lighter(prose, hot), None)
+    image.paste(SPECTRA6["white"], (0, 0), prose.point(lambda v: 255 if v > 110 else 0))
+    paint_neon_mask(image, hot, SPECTRA6["yellow"], SPECTRA6["red"],
+                    radius=3, gamma=1.5, cap=0.62,
+                    ground=frozenset({SPECTRA6["black"]}), tile=BAYER_8x8)
+    prose.close()
+    hot.close()
+
+
+def _biomech_paint_byline(image: Image.Image, quote_row: dict) -> None:
+    """Author and title, small and bone-white, over the dark plain."""
+    left, right, *_ = _BIOMECH_ARCH
+    mask = Image.new("L", image.size, 0)
+    font = load_font([SPECTRAL_MEDIUM_ITALIC, *META_FONT_CANDIDATES], size=15)
+    draw_truncated_centred_byline(ImageDraw.Draw(mask), quote_row, centre=(left + right) // 2,
+                                  baseline=_BIOMECH_BYLINE_BASELINE, max_width=right - left - 60,
+                                  font=font, fill=255)
+    _biomech_halo_paste(image, mask, SPECTRA6["white"])
+    mask.close()
+
+
+def _biomech_paint_plate(draw: ImageDraw.ImageDraw, hour: int) -> None:
+    """The sill cartouche: the work's title, the hour its Roman number."""
+    x0, y0, x1, y1 = _BIOMECH_PLATE
+    # The numeral is ember yellow, not red: red on black is the lowest-contrast
+    # pair the six inks offer, and on the calibrated panel a red numeral all
+    # but vanished into its own plate.
+    white, yellow, black = SPECTRA6["white"], SPECTRA6["yellow"], SPECTRA6["black"]
+    draw.rounded_rectangle((x0, y0, x1, y1), radius=6, fill=black, outline=white, width=1)
+    font = load_font([(GRENZE_GOTISCH_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=15)
+    title, numeral = "Biomechanoid · ", _TAROT_ROMAN_NUMERALS[hour]
+    total = draw.textlength(title + numeral, font=font)
+    x = (x0 + x1 - total) / 2
+    base = y1 - 6
+    draw.text((x, base), title, font=font, fill=white, anchor="ls")
+    draw.text((x + draw.textlength(title, font=font), base), numeral, font=font, fill=yellow, anchor="ls")
+
+
+def render_biomech_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """Giger's wall round a Beksiński dusk (see the module section comment above)."""
+    hour = _biomech_hour(time_str)
+    image = _biomech_background().copy()
+    draw = ImageDraw.Draw(image)
+    _biomech_paint_quote(image, draw, quote_row)
+    _biomech_paint_byline(image, quote_row)
+    _biomech_paint_plate(draw, hour)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
 
 # ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
@@ -28247,6 +28902,8 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_observation_frame(time_str, quote_row, width, height)
     if theme == "trisolaris":
         return render_trisolaris_frame(time_str, quote_row, width, height)
+    if theme == "biomech":
+        return render_biomech_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)
