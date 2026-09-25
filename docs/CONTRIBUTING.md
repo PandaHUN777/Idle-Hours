@@ -168,7 +168,7 @@ gutenberg_time_miner → merge_candidates → clean_display_quotes →
 `render_quote.py` is designed around the Inky Impression 7.3 Spectra 6 (800×480,
 6-colour palette). Any colour change goes through `snap_image_to_palette`.
 
-Sixty-seven themes ship today (`default`, `dark`, `swiss`, `scholar`,
+Seventy-three themes ship today (`default`, `dark`, `swiss`, `scholar`,
 `newsprint`, `nightvision`, `blueprint`, `illuminated`, … through the
 custom-render frames `astrarium`, `marquee`, `tarot`, `vinyl`, `vitrail`,
 `questline` (8-bit RPG dialogue), `chrono` (16-bit SNES JRPG cutscene),
@@ -191,6 +191,12 @@ against all six inks),
 `carcosa` (The King in Yellow — tattered curtains over Lake Hali),
 `control` (Remedy's *Control* — the Astral Plane, a Hiss-red phrase),
 `observation` (No Code's *Observation* — S.A.M.'s camera feed of Saturn),
+`trisolaris` (*The Three-Body Problem* — a live three-body integration the clock drives),
+`biomech` (H. R. Giger's wall round a Beksiński dusk),
+`codex` (the Codex Seraphinianus — asemic script, a chimerical plant plate),
+`culture` (Iain M. Banks's Culture — a Mind's signal beside an Orbital),
+`orbital` (the Culture's Arch from a plate, lit as a 24-hour dial),
+`furies` (Francis Bacon's 1944 *Three Studies for Figures at the Base of a Crucifixion*),
 `bosch` (Hieronymus Bosch's *Garden of Earthly Delights* — the triptych open, crazed with craquelure),
 the `circuit`
 printed-circuit-board theme, and the `diags` calibration panel — see the
