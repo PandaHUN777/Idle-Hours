@@ -1875,7 +1875,7 @@ class TestFixedGeometryFramesDownscale:
 
     FIXED_GEOMETRY_FRAMES = ("vhs", "cardcatalog", "metro", "bakelite", "intaglio", "nocturne",
                              "plaque", "daguerreotype", "autochrome", "photo", "tarot", "vinyl",
-                             "control", "observation")
+                             "control", "observation", "biomech")
 
     @pytest.mark.parametrize("theme", FIXED_GEOMETRY_FRAMES)
     @pytest.mark.parametrize("size", [(320, 192), (240, 144), (400, 240)])
@@ -4284,5 +4284,204 @@ class TestObservationFrame:
         row = {**self.ROW, "author": "", "title": ""}
         assert rq._observation_log_header(make_row(**row)) == "AUDIO LOG — UNATTRIBUTED"
         assert rq._observation_log_header(make_row(**self.ROW)) == "AUDIO LOG — JANE AUSTEN"
+        image = self._render(row)
+        assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+
+class TestShadeHeightField:
+    """``shade_height_field`` — a procedural height field lit Blinn-Phong.
+
+    The failure worth fencing is silent: a flipped Sobel sign still renders a
+    plausible-looking relief, just lit from the wrong corner, and nothing else
+    in the suite would notice.
+    """
+
+    @staticmethod
+    def _ramp(axis: str) -> Image.Image:
+        image = Image.new("L", (9, 9))
+        image.putdata([(x if axis == "x" else y) * 10 for y in range(9) for x in range(9)])
+        return image
+
+    def test_sobel_kernels_read_as_positive_slopes(self):
+        """Measured against ramps: ``ImageFilter.Kernel`` reverses its rows but
+        not its columns, so the Y weights look upside down on purpose."""
+        x_ramp, y_ramp = self._ramp("x"), self._ramp("y")
+        assert x_ramp.filter(rq._SOBEL_X).getpixel((4, 4)) == 128 + 40
+        assert x_ramp.filter(rq._SOBEL_Y).getpixel((4, 4)) == 128
+        assert y_ramp.filter(rq._SOBEL_Y).getpixel((4, 4)) == 128 + 40
+        assert y_ramp.filter(rq._SOBEL_X).getpixel((4, 4)) == 128
+
+    def test_flat_field_shades_to_ambient_plus_diffuse_lz(self):
+        light = (-0.55, -0.62, 0.56)
+        norm = math.sqrt(sum(c * c for c in light))
+        tone = rq.shade_height_field(Image.new("L", (16, 16), 90), light=light,
+                                     ambient=0.1, diffuse=0.8, specular=0.0)
+        expected = round((0.1 + 0.8 * light[2] / norm) * 255)
+        assert abs(tone.getpixel((8, 8)) - expected) <= 1
+
+    def test_dome_is_lit_from_the_upper_left(self):
+        from PIL import ImageFilter
+        field = Image.new("L", (120, 120), 0)
+        ImageDraw.Draw(field).ellipse((20, 20, 100, 100), fill=255)
+        tone = rq.shade_height_field(field.filter(ImageFilter.GaussianBlur(10)), specular=0.0)
+        upper_left = tone.crop((28, 28, 44, 44))
+        lower_right = tone.crop((76, 76, 92, 92))
+        def mean(im):
+            hist = im.histogram()
+            return sum(i * c for i, c in enumerate(hist)) / sum(hist)
+
+        assert mean(upper_left) > mean(lower_right) + 60
+
+    def test_specular_glint_is_brighter_than_diffuse_alone(self):
+        from PIL import ImageFilter
+        field = Image.new("L", (120, 120), 0)
+        ImageDraw.Draw(field).ellipse((20, 20, 100, 100), fill=255)
+        field = field.filter(ImageFilter.GaussianBlur(10))
+        matte = rq.shade_height_field(field, specular=0.0)
+        glossy = rq.shade_height_field(field, specular=0.9)
+        assert glossy.getextrema()[1] > matte.getextrema()[1]
+        assert glossy.getextrema()[1] == 255
+
+    def test_lookup_table_is_memoised_per_parameter_set(self):
+        a = rq._height_field_lut((-0.5, -0.5, 0.7), 0.02, 0.1, 0.8, 0.5, 20.0)
+        assert rq._height_field_lut((-0.5, -0.5, 0.7), 0.02, 0.1, 0.8, 0.5, 20.0) is a
+        assert len(a) == 65536
+
+
+class TestBiomechFrame:
+    """``biomech`` — H. R. Giger's wall round a Zdzisław Beksiński dusk.
+
+    A lit, K+W-dithered biomechanical height field frames a pointed arch; a
+    procedurally painted dusk and ruin are dithered to K/R/Y/W behind it. The
+    hour is the Roman numeral on the sill plate.
+    """
+
+    ROW = dict(
+        display_quote="It was about half past two when the clock struck and the "
+                      "afternoon light came slanting through the tall windows.",
+        matched_text="half past two",
+        author="Jane Austen",
+        title="Emma",
+        source_id="158",
+        line_number=482,
+    )
+
+    @staticmethod
+    def _render(row=None, time_str="14:30", size=(800, 480)):
+        return rq.render(time_str, make_row(**(row or TestBiomechFrame.ROW)),
+                         *size, mode="production", theme="biomech")
+
+    def test_registered_everywhere(self):
+        from idle_hours import display_inky
+        assert "biomech" in rq.THEMES
+        assert "biomech" in rq.THEME_ORDER
+        assert "biomech" not in rq.CYCLE_EXCLUDED_THEMES
+        assert display_inky.THEME_SATURATION["biomech"] == 0.7
+        assert rq.theme_font_candidates("biomech", "quote_regular")[0] == rq.SPECTRAL_MEDIUM
+        assert rq.theme_font_candidates("biomech", "quote_bold")[0] == rq.SPECTRAL_SEMIBOLD
+        for path in (rq.SPECTRAL_MEDIUM, rq.SPECTRAL_SEMIBOLD, rq.SPECTRAL_MEDIUM_ITALIC,
+                     rq.GRENZE_GOTISCH_VARIABLE):
+            assert pathlib.Path(path).exists(), path
+            assert (pathlib.Path(path).parent / "OFL.txt").exists()
+
+    @pytest.mark.parametrize("time_str,hour", [
+        ("00:30", 12), ("12:00", 12), ("13:05", 1), ("01:59", 1), ("21:15", 9), ("bogus", 12),
+    ])
+    def test_hour_is_the_twelve_hour_clock_hour(self, time_str, hour):
+        assert rq._biomech_hour(time_str) == hour
+
+    def test_minute_never_reaches_the_frame(self):
+        """Hour only: the plate's numeral carries the hour and the matched
+        phrase the minute, so every minute of an hour renders byte-identically."""
+        first = pixel_bytes(self._render(time_str="14:00"))
+        for time_str in ("14:07", "14:30", "14:59", "02:45"):
+            assert pixel_bytes(self._render(time_str=time_str)) == first
+
+    def test_hour_changes_only_the_plate(self):
+        a, b = self._render(time_str="14:30"), self._render(time_str="15:30")
+        assert pixel_bytes(a) != pixel_bytes(b)
+        diff = ImageChops.difference(a, b).getbbox()
+        x0, y0, x1, y1 = rq._BIOMECH_PLATE
+        assert diff[0] >= x0 and diff[1] >= y0 and diff[2] <= x1 + 1 and diff[3] <= y1 + 1
+
+    def test_on_palette_deterministic_and_the_fire_never_cools(self):
+        """Black, white, red and yellow only: blue or green anywhere would mean
+        error diffusion cooled the dusk or chroma leaked into the bone."""
+        image = self._render()
+        assert distinct_inks(image) == {rq.SPECTRA6[n] for n in ("black", "white", "red", "yellow")}
+        assert pixel_bytes(image) == pixel_bytes(self._render())
+
+    def test_wall_is_monochrome_bone_with_a_red_rim(self):
+        """The wall dithers to K+W; red appears only as rim light, sparse, and
+        concentrated on the side facing the portal."""
+        image = self._render()
+        left = rq._BIOMECH_ARCH[0]
+        pier = image.crop((0, 120, left, 440))
+        counts = ink_counts(pier)
+        assert set(counts) <= {rq.SPECTRA6[n] for n in ("black", "white", "red")}
+        red = rq.SPECTRA6["red"]
+        total = sum(counts.values())
+        assert 0 < counts.get(red, 0) < 0.12 * total
+        outer = ink_counts(image.crop((0, 120, 30, 440))).get(red, 0)
+        inner = ink_counts(image.crop((left - 30, 120, left, 440))).get(red, 0)
+        assert inner > 3 * outer
+
+    def test_quote_rect_lies_inside_the_opening(self):
+        x0, y0, x1, y1 = rq._BIOMECH_QUOTE_RECT
+        left, right, *_ = rq._BIOMECH_ARCH
+        cx = (left + right) / 2
+        for y in (y0 + 14, (y0 + y1) / 2, y1):
+            assert cx - rq._biomech_arch_halfwidth(y) <= x0
+            assert cx + rq._biomech_arch_halfwidth(y) >= x1
+
+    def test_sun_and_cloud_stay_above_the_horizon(self):
+        """The ground below the horizon is only the ground gradient: the sun is
+        half set, not a disc lying on the plain."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._biomech_paint_sky(image)
+        ground = image.crop((0, rq._BIOMECH_HORIZON + 1, 800, 480))
+        ceiling = max(rq._BIOMECH_GROUND_STOPS[0][1])
+        assert max(band_max for _, band_max in ground.getextrema()) <= ceiling
+        sx, sy, sr = rq._BIOMECH_SUN
+        assert image.getpixel((sx, sy - sr // 2)) == (255, 244, 206)
+
+    def test_zenith_is_black_behind_the_quote(self):
+        """The top of the sky dithers to solid black, so the halo'd prose sits
+        on night rather than on a speckle."""
+        image = Image.new("RGB", (800, 480), rq.SPECTRA6["black"])
+        rq._biomech_paint_sky(image)
+        top = rq.dither_image_to_palette(image, rq._BIOMECH_SCENE_PALETTE).crop((200, 0, 600, 160))
+        assert distinct_inks(top) == {rq.SPECTRA6["black"]}
+
+    def test_phrase_is_an_ember_that_never_overwrites_prose(self, monkeypatch):
+        """Yellow core, red bloom landing only on black."""
+        red, yellow, white = rq.SPECTRA6["red"], rq.SPECTRA6["yellow"], rq.SPECTRA6["white"]
+        qbox = rq._BIOMECH_QUOTE_RECT
+        with_halo = self._render().crop(qbox)
+        original = rq.paint_neon_mask
+
+        def core_only(image, mask, core, glow, **kwargs):
+            kwargs["cap"] = 0.0
+            return original(image, mask, core, glow, **kwargs)
+
+        monkeypatch.setattr(rq, "paint_neon_mask", core_only)
+        without = self._render().crop(qbox)
+        assert ink_counts(with_halo).get(red, 0) > ink_counts(without).get(red, 0)
+        assert ink_counts(with_halo).get(yellow, 0) > 0
+        white_mask = without.convert("L").point(lambda v: 255 if v == 255 else 0)
+        under = Image.composite(with_halo, Image.new("RGB", with_halo.size, white), white_mask)
+        assert distinct_inks(under) == {white}, "bloom overwrote prose"
+
+    def test_background_cache_respects_a_patched_painter(self, monkeypatch):
+        """The painted background is cached, but a neutered painter must still
+        change the frame — otherwise the decoration fences measure the cache."""
+        painted = pixel_bytes(self._render())
+        monkeypatch.setattr(rq, "_biomech_paint_wall", lambda image, opening: None)
+        assert pixel_bytes(self._render()) != painted
+        monkeypatch.undo()
+        assert pixel_bytes(self._render()) == painted
+
+    def test_bare_row_renders(self):
+        row = {**self.ROW, "author": "", "title": "", "source_id": None}
         image = self._render(row)
         assert distinct_inks(image) <= set(rq.SPECTRA6.values())
