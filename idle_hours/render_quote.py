@@ -148,6 +148,22 @@ THEME_ORDER: tuple[str, ...] = (
 # on the panel with nobody there to pick a different theme, which is exactly
 # what this set is for.
 CYCLE_EXCLUDED_THEMES: frozenset[str] = frozenset({"vinyl"})
+# Who reads a custom-frame theme's palette. A theme with its own
+# ``render_<theme>_frame`` paints its own inks, but still needs a THEMES entry,
+# because three paths draw from the palette alone and never call the frame:
+#
+# * ``render_source_card`` — the button-C overlay (``render`` checks
+#   ``mode == "card"`` before dispatching to any frame);
+# * ``render_static_message`` — ``--mode goodnight --message TEXT`` only;
+# * ``contact_sheet`` — the sheet's gutters, captions and placeholder tiles.
+#
+# The quiet-hours sleep frame is NOT one of them. ``render_sleep_frame`` goes
+# through ``render`` like any quote, so a custom-frame theme's sleep frame is
+# its own frame. Entry comments used to say these palettes "serve only the
+# goodnight / source-card fall-through paths" — true when goodnight was a bare
+# headline, false once the sleep quote became a corpus row — and the sentence
+# had been copied into twenty entries. It lives here once instead. (``diags``
+# is the one frame that also reads its own entry, for its status labels.)
 THEMES = {
     "default": {
         "page_bg": SPECTRA6["white"],
@@ -898,8 +914,7 @@ THEMES = {
     # and the matched-phrase tangerine is the same R+Y 5/8:3/8 recipe
     # ``deco`` / ``atomic`` use so the body accent and the dial share
     # one perceived warm orange at panel distance. The palette stays
-    # white/black/red so the fall-through paths (``render_static_message``
-    # for goodnight, ``render_source_card`` for the button-C overlay)
+    # white/black/red so the palette-only paths (see the note above ``THEMES``)
     # render readably without needing astrarium-specific code.
     "astrarium": {
         "page_bg": SPECTRA6["white"],
@@ -1049,9 +1064,8 @@ THEMES = {
     # the Roman-numeral hour, and the literary quote glowing in a clear
     # white-glass central cartouche knocked out of the colored field so
     # the body text stays legible. The matched time phrase renders in
-    # violet-glass R+B purple. The palette below is only consumed by the
-    # fall-through paths (render_static_message for goodnight,
-    # render_source_card for the button-C overlay) — the frame itself
+    # violet-glass R+B purple. The palette below is only consumed by
+    # the palette-only paths (see the note above ``THEMES``) — the frame itself
     # hardcodes SPECTRA6 inks — so it's a clean white/black ground with a
     # blue (violet-glass) accent.
     "vitrail": {
@@ -1115,8 +1129,8 @@ THEMES = {
     # in yellow), the author as the speaker nameplate, and the book title as a
     # footer. Black night-sky ground; white body text; yellow matched-phrase
     # accent (the classic "highlighted keyword" tint of RPG dialogue). The
-    # palette is consulted by fit_quote / _draw_text_body inside the frame and
-    # by the goodnight / source-card fall-through paths.
+    # frame hardcodes those inks; ``fit_quote`` takes the theme name only to
+    # pick fonts. The palette serves the palette-only paths (see the note above ``THEMES``).
     "questline": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1134,7 +1148,7 @@ THEMES = {
     # with a rounded beveled border, a character *portrait* sub-window, and
     # the quote as on-screen dialogue (matched phrase in yellow Pixelify Sans
     # Bold). Blue ground; white body; yellow accent. The palette is consulted
-    # by the goodnight / source-card fall-through paths.
+    # by the palette-only paths (see the note above ``THEMES``).
     "chrono": {
         "page_bg": SPECTRA6["blue"],
         "text": SPECTRA6["white"],
@@ -1153,10 +1167,11 @@ THEMES = {
     # gradient sliced by widening horizontal slits), and a cyan/magenta neon
     # perspective grid receding to a central vanishing point. The literary
     # quote floats in the dark upper sky in white Oxanium with the matched
-    # time-phrase picked out in synthesised cyan (G+B); the author/title sit
+    # time-phrase picked out in synthesised red-biased magenta (R+B 5/8:3/8 —
+    # an earlier green+blue teal read dim against the cool sky); the author/title sit
     # below as a small Antonio credit line. Black ground; white body; the
-    # palette here is consulted only by the goodnight / source-card
-    # fall-through paths (the frame itself hardcodes the Spectra-6 inks).
+    # palette here is consulted only by the palette-only paths (see the note above ``THEMES``)
+    # — the frame itself hardcodes the Spectra-6 inks.
     "outrun": {
         "page_bg": SPECTRA6["black"],
         "text": SPECTRA6["white"],
@@ -1210,10 +1225,8 @@ THEMES = {
     # custom frame (``render_codex_frame``): cream page, a chimerical plant
     # plate in full-palette colour, columns of procedurally generated asemic
     # script, the quote as the page's one deciphered passage, and the time as
-    # a base-21 page number in invented numerals. The quiet-hours sleep frame
-    # goes through ``render`` and so through the frame itself; these slots are
-    # read only by the palette-only paths — the button-C source card and the
-    # opt-in ``--message`` headline.
+    # a base-21 page number in invented numerals. These slots are read only by
+    # the palette-only paths (see the note above ``THEMES``).
     "codex": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -1229,8 +1242,7 @@ THEMES = {
     # in K+W stipple, the Board's inverted black pyramid, a concrete plinth
     # carrying a black wayfinding sign. Black condensed prose; the matched
     # phrase is Hiss red with a coral bloom stippled into the white around it.
-    # The literary-layout slots below serve only the goodnight / source-card
-    # fall-through paths.
+    # The literary-layout slots below serve only the palette-only paths (see the note above ``THEMES``).
     "control": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -1296,7 +1308,7 @@ THEMES = {
         "source": SPECTRA6["white"],
     },
     # Engraved art-song manuscript. A custom-render frame, so these colours
-    # serve only the goodnight / source-card fall-through paths; the frame
+    # serve only the palette-only paths (see the note above ``THEMES``); the frame
     # itself hardcodes its three-tier ink hierarchy (black plate / maroon
     # editorial / red voice — see the lieder section comment).
     "lieder": {
@@ -1310,7 +1322,7 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # Neon alley at night. A custom-render frame, so these colours serve only
-    # the goodnight / source-card fall-through paths; the frame itself paints
+    # the palette-only paths (see the note above ``THEMES``); the frame itself paints
     # its tube cores and blooms directly (see the izakaya section comment).
     "izakaya": {
         "page_bg": SPECTRA6["black"],
@@ -1322,8 +1334,8 @@ THEMES = {
         "ornament_light": SPECTRA6["white"],
         "source": SPECTRA6["white"],
     },
-    # Deep sea. A custom-render frame, so these colours serve only the
-    # goodnight / source-card fall-through paths; the frame paints its own
+    # Deep sea. A custom-render frame, so these colours serve only
+    # the palette-only paths (see the note above ``THEMES``); the frame paints its own
     # depth gradient and blooms (see the abyssal section comment).
     "abyssal": {
         "page_bg": SPECTRA6["blue"],
@@ -1339,9 +1351,8 @@ THEMES = {
     # (``render_pride_frame``) that bypasses the literary layout entirely — the
     # flag is full-bleed and the quote sits in a white cartouche knocked out of
     # the cloth, so the shared margins / oversized quote marks / debug footer
-    # have nothing to sit on. The palette below is consumed only by the
-    # fall-through paths (``render_static_message`` for goodnight,
-    # ``render_source_card`` for the button-C overlay); the frame itself picks
+    # have nothing to sit on. The palette below is consumed only by
+    # the palette-only paths (see the note above ``THEMES``); the frame itself picks
     # its stripe inks from ``_PRIDE_STRIPE_INKS``. ``accent`` is blue because
     # the frame's matched phrase is the R+B violet stipple and blue is the half
     # of that recipe which still reads on the white card.
@@ -1358,7 +1369,7 @@ THEMES = {
     # 1940s lurid paperback front. A custom-render frame (``render_pulp_frame``)
     # that owns the canvas — masthead, cover title, blurb band, price flash and
     # corner banner leave nothing for the shared literary layout to sit on. The
-    # palette below serves only the goodnight / source-card fall-through paths.
+    # palette below serves only the palette-only paths (see the note above ``THEMES``).
     "pulp": {
         "page_bg": SPECTRA6["yellow"],
         "text": SPECTRA6["black"],
@@ -1371,8 +1382,8 @@ THEMES = {
     },
     # Bakelite console — an amber-phosphor CRT set into a moulded butterscotch
     # slab (see the ``render_bakelite_frame`` section comment). A custom frame,
-    # so these values are consumed only by the goodnight / source-card
-    # fall-through paths; the frame itself hardcodes its inks. ``text`` is the
+    # so these values are consumed only by the palette-only paths (see the note above ``THEMES``);
+    # the frame itself hardcodes its inks. ``text`` is the
     # yellow phosphor core, ``accent`` the red halo that surrounds every lit
     # glyph, and ``page_bg`` the black glass the tube sits behind.
     "bakelite": {
@@ -1386,8 +1397,8 @@ THEMES = {
         "source": SPECTRA6["red"],
     },
     # Banknote / security engraving. A custom-render frame
-    # (``render_intaglio_frame``) — the palette below serves only the goodnight /
-    # source-card fall-through paths. The face itself is the three-plate
+    # (``render_intaglio_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The face itself is the three-plate
     # structure of a real note: black intaglio, green tint lathework, red
     # numbering press, on white paper.
     "intaglio": {
@@ -1401,8 +1412,8 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # Whistler nocturne — blue-and-gold night river. A custom-render frame
-    # (``render_nocturne_frame``); the palette below serves only the goodnight /
-    # source-card fall-through paths. The canvas itself is flow-field blue
+    # (``render_nocturne_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The canvas itself is flow-field blue
     # brushwork over black with synthesised-gold light.
     "nocturne": {
         "page_bg": SPECTRA6["black"],
@@ -1415,9 +1426,10 @@ THEMES = {
         "source": SPECTRA6["blue"],
     },
     # Patinated bronze memorial plaque. A custom-render frame
-    # (``render_plaque_frame``); the palette below serves only the goodnight /
-    # source-card fall-through paths. The tablet itself is forest-teal
-    # verdigris carrying relief-lit gold lettering.
+    # (``render_plaque_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The tablet itself
+    # is dark verdigris carrying relief-lit burnished-brass lettering (it was
+    # forest-teal with gold until both measured too low-contrast to read).
     "plaque": {
         "page_bg": SPECTRA6["green"],
         "text": SPECTRA6["yellow"],
@@ -1429,8 +1441,8 @@ THEMES = {
         "source": SPECTRA6["yellow"],
     },
     # Cased 1850s daguerreotype. A custom-render frame
-    # (``render_daguerreotype_frame``); the palette below serves only the
-    # goodnight / source-card fall-through paths. The case itself is a brass
+    # (``render_daguerreotype_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The case itself is a brass
     # mat around an Atkinson-dithered monochrome plate.
     "daguerreotype": {
         "page_bg": SPECTRA6["white"],
@@ -1443,8 +1455,8 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # Autochrome Lumiere colour plate in its passe-partout. A custom-render
-    # frame (``render_autochrome_frame``); the palette below serves only the
-    # goodnight / source-card fall-through paths. The frame itself is a
+    # frame (``render_autochrome_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The frame itself is a
     # six-ink-dithered photograph under black binding tape, quote on a cream card.
     "autochrome": {
         "page_bg": SPECTRA6["white"],
@@ -1457,8 +1469,8 @@ THEMES = {
         "source": SPECTRA6["black"],
     },
     # The operator's own photograph. A custom-render frame
-    # (``render_photo_frame``); the palette below serves only the goodnight /
-    # source-card fall-through paths. The picture is whatever
+    # (``render_photo_frame``) — the palette below serves only
+    # the palette-only paths (see the note above ``THEMES``). The picture is whatever
     # ``IDLE_HOURS_PHOTO_PATH`` names, conditioned and dithered against all six
     # inks, with the quote on a cream card placed over its quietest region.
     "photo": {
@@ -1473,8 +1485,8 @@ THEMES = {
     },
     # Library catalogue card. A custom-render frame (``render_cardcatalog_frame``)
     # — the stamp column needs a right margin the shared literary layout does not
-    # leave, see that frame's section comment. The palette below serves only the
-    # goodnight / source-card fall-through paths; the card itself is manila
+    # leave, see that frame's section comment. The palette below serves only
+    # the palette-only paths (see the note above ``THEMES``); the card itself is manila
     # (cream + sepia foxing) with violet library ink.
     "cardcatalog": {
         "page_bg": SPECTRA6["white"],
@@ -1489,7 +1501,7 @@ THEMES = {
     # Worn VHS tape under a camcorder OSD. A custom-render frame
     # (``render_vhs_frame``) that owns the canvas — the quote is composite-video
     # text over tape noise, not prose in a layout — so the palette below serves
-    # only the goodnight / source-card fall-through paths. Red and blue are the
+    # only the palette-only paths (see the note above ``THEMES``). Red and blue are the
     # two chroma records that drift apart in ``draw_text_chroma_shift``; the
     # body itself is white.
     "vhs": {
@@ -1541,9 +1553,9 @@ THEMES = {
     # the diags theme to a special status layout (clock + bucket / layout /
     # quality / source fields + a swatch grid showing the Spectra 6 palette
     # and the 2-ink synthesised tones documented in CLAUDE.md). The palette
-    # itself is white/black/red so the fall-through paths (render_static_message
-    # for goodnight, render_source_card for the button-C overlay) still render
-    # readably without needing their own diags-specific code.
+    # itself is white/black/red so the palette-only paths (see the note above ``THEMES``) still
+    # render readably without needing their own diags-specific code — and the
+    # frame reads it too, for its status labels.
     "diags": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -1562,8 +1574,8 @@ THEMES = {
     # is stitched in black floss with the matched time-phrase in red floss (the
     # time signal — no digital HH:MM is surfaced). The cream ground is
     # synthesised at render time via a Y+W stipple wash, so the THEMES palette
-    # here is plain white/black/red — consulted only by the goodnight /
-    # source-card fall-through paths, never by the frame itself.
+    # here is plain white/black/red — consulted only by
+    # the palette-only paths (see the note above ``THEMES``), never by the frame itself.
     "sampler": {
         "page_bg": SPECTRA6["white"],
         "text": SPECTRA6["black"],
@@ -3373,9 +3385,9 @@ THEME_FONTS: dict[str, dict[str, list]] = {
     # the status-grid layout, not the literary frame — a clean grotesque
     # sans reads better at small label sizes than the Playfair serif
     # default. Picks a different *family* (sans) from default/dark
-    # (transitional serif) so the fall-through paths (goodnight,
-    # source card) also look visibly different rather than aliasing
-    # default.
+    # (transitional serif) so the palette-only paths (the source card, the
+    # ``--message`` headline) also look visibly different rather than
+    # aliasing default.
     # Press Start 2P everywhere — body, matched-phrase accent, and the
     # nameplate / footer chrome. Single weight, so quote_bold reuses Regular
     # and the matched phrase differentiates through the yellow accent alone
@@ -12515,7 +12527,7 @@ def draw_cartograph_border(
       surrounding decoration sets up.
 
     When ``clear_rect`` is None (direct-call test path,
-    ``render_static_message`` for the goodnight frame, and
+    ``render_static_message`` for the ``--message`` goodnight headline, and
     ``render_source_card`` for the button-C overlay), Layers 9 / 10
     are skipped; all the map layers still paint, so the cartograph
     identity survives the fall-through paths.
@@ -14550,8 +14562,10 @@ def draw_synoptic_border(image: Image.Image, colors: dict, clear_rect=None, time
 #   the matched phrase carries the readable time, the bar and the daypart
 #   pill carry the shape of the day, the posture ``questline`` / ``outrun``
 #   take but without ``del``-asserting ``time_str``. The registry path (the
-#   button-C source card, the goodnight frame) has no time and draws an
-#   empty track, which is correct for a page that is not a reading.
+#   button-C source card, the ``--message`` headline) has no time and draws
+#   an empty track, which is correct for a page that is not a reading. The
+#   quiet-hours sleep frame is not on that path: it goes through ``render``
+#   with the entry time, so it carries a real track and daypart pill.
 # * **Legend.** The app's five answer tiers along the foot — ● Love it ●
 #   Like it ● Neutral ● Curious ● Hard No — each dot in its tier colour,
 #   labels in Inter SemiBold. The tiers are the app's palette and they map
@@ -14943,7 +14957,8 @@ def draw_betweenus_border(image: Image.Image, colors: dict, clear_rect=None, tim
     ``time_str``) compose identically. ``time_str`` is optional for the same
     reason as ``draw_synoptic_border``'s: the ``_BORDER_PAINTERS`` contract
     passes only ``(image, colors, clear_rect)``, so the source card and the
-    goodnight frame get an empty track and no daypart pill.
+    ``--message`` headline get an empty track and no daypart pill. The sleep
+    frame goes through ``render`` with a time, so it gets both.
     """
     width, height = image.size
     dark = _betweenus_is_dark(colors)
@@ -15551,11 +15566,12 @@ def render_source_card(quote_row: dict, width: int, height: int, theme: str = "d
 def render_static_message(message: str, width: int, height: int, theme: str = "default") -> Image.Image:
     """Render a centered headline message in the active theme.
 
-    Used by the ``--quiet-image=auto`` and ``--startup-image=auto`` sentinels
-    so the goodnight / startup frame matches the operator's chosen theme
-    instead of always showing the dark ``assets/goodnight.png``. Reuses the
-    theme palette, border, and bundled fonts so it visually matches the quote
-    frame an operator sees seconds before quiet hours begin.
+    The opt-in ``--mode goodnight --message TEXT`` path. It used to back the
+    ``--quiet-image=auto`` / ``--startup-image=auto`` sentinels too; those now
+    go through :func:`render_sleep_frame`, which renders the sleep quote with
+    the full literary layout (or the theme's own frame). Reuses the theme
+    palette, border and bundled fonts, but never a custom frame — so for a
+    custom-frame theme this reads only the ``THEMES`` palette.
     """
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
