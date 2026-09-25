@@ -15,6 +15,11 @@ class TestIterJsonl:
         path.write_text('{"a": 1}\n\n   \n{"a": 2}\n', encoding="utf-8")
         assert list(iter_jsonl(path)) == [{"a": 1}, {"a": 2}]
 
+    def test_bom_prefixed_first_row_is_read(self, tmp_path):
+        path = tmp_path / "rows.jsonl"
+        path.write_text('\ufeff{"a": 1}\n{"a": 2}\n', encoding="utf-8")
+        assert list(iter_jsonl(path)) == [{"a": 1}, {"a": 2}]
+
     def test_malformed_line_logged_and_skipped(self, tmp_path, capsys):
         path = tmp_path / "rows.jsonl"
         path.write_text('{"a": 1}\nnot-json\n{"a": 2}\n', encoding="utf-8")
