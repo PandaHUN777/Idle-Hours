@@ -132,6 +132,7 @@ THEME_ORDER: tuple[str, ...] = (
     "betweenus",
     "betweenus_dark",
     "carcosa",
+    "control",
     "diags",
 )
 # Themes registered in THEMES but deliberately excluded from the button-B / web
@@ -1204,6 +1205,23 @@ THEMES = {
         "ornament_light": SPECTRA6["yellow"],
         "source": SPECTRA6["white"],
     },
+    # Remedy's *Control* — the Astral Plane. A custom frame
+    # (``render_control_frame``): white void, floating isometric stone blocks
+    # in K+W stipple, the Board's inverted black pyramid, a concrete plinth
+    # carrying a black wayfinding sign. Black condensed prose; the matched
+    # phrase is Hiss red with a coral bloom stippled into the white around it.
+    # The literary-layout slots below serve only the goodnight / source-card
+    # fall-through paths.
+    "control": {
+        "page_bg": SPECTRA6["white"],
+        "text": SPECTRA6["black"],
+        "subtle": SPECTRA6["black"],
+        "faint": SPECTRA6["black"],
+        "accent": SPECTRA6["red"],
+        "ornament_dark": SPECTRA6["black"],
+        "ornament_light": SPECTRA6["white"],
+        "source": SPECTRA6["black"],
+    },
     # Wax-sealed letter. A quote presented as intimate handwritten
     # correspondence on a sheet of aged paper. White ``page_bg`` warmed
     # to a faint cream/vellum by ``draw_letter_border``'s Layer 0
@@ -1790,6 +1808,10 @@ SHOJUMARU_REGULAR = str(BASE_DIR / "fonts/shojumaru/Shojumaru-Regular.ttf")
 # install lands on a heavy sans silhouette rather than dropping the
 # LCARS theme onto an elegant transitional serif.
 ANTONIO_VARIABLE = str(BASE_DIR / "fonts/antonio/Antonio-Variable.ttf")
+# Oswald (Vernon Adams / Kalapi Gajjar / Cyreal, OFL) — the free stand-in for
+# the heavy condensed grotesque of *Control*'s title cards; variable Weight
+# axis with ExtraLight..Bold named instances. Used by ``control``.
+OSWALD_VARIABLE = str(BASE_DIR / "fonts/oswald/Oswald-Variable.ttf")
 # Inter — Rasmus Andersson (OFL). The de-facto open-source Helvetica
 # replacement: a clean grotesque sans designed for UI rendering at
 # small sizes, sits visually distinct from Archivo (blueprint —
@@ -3444,6 +3466,32 @@ THEME_FONTS: dict[str, dict[str, list]] = {
         "ornament": [
             ALMENDRA_DISPLAY,
             ALMENDRA_BOLD,
+            *ORNAMENT_FONT_CANDIDATES,
+        ],
+    },
+    "control": {
+        # Oswald — the free stand-in for the heavy condensed grotesque of the
+        # game's title cards (Univers / Helvetica Neue Condensed territory),
+        # pinned to Bold for the body as well as the phrase: a title card is
+        # heavy by definition, and the phrase earns its step from the Hiss red
+        # and its bloom rather than from weight (the comic / dispatch
+        # discipline). Antonio, the earlier stand-in, is the next fallback so
+        # a stripped install still lands on a condensed silhouette.
+        "quote_regular": [
+            (OSWALD_VARIABLE, "Bold"),
+            (ANTONIO_VARIABLE, "Bold"),
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "quote_bold": [
+            (OSWALD_VARIABLE, "Bold"),
+            (ANTONIO_VARIABLE, "Bold"),
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
+            *QUOTE_FONT_BOLD_CANDIDATES,
+        ],
+        "ornament": [
+            (OSWALD_VARIABLE, "Bold"),
+            (ANTONIO_VARIABLE, "Bold"),
             *ORNAMENT_FONT_CANDIDATES,
         ],
     },
@@ -15152,7 +15200,13 @@ _CYANOTYPE_PALETTE = [SPECTRA6["white"], SPECTRA6["black"], SPECTRA6["blue"]]
 # pure with no stray chroma scattering into the deep void. The gold/blood trim,
 # Aquila, and cog-skull paint as primitives on top.
 GRIMDARK_PLATE = BASE_DIR / "assets" / "grimdark_gunmetal.png"
+# control: board-formed concrete for the plinth, dithered to white+black at
+# render time (scripts/generate_control_plate.py). 800x88, the plinth band.
+CONTROL_PLATE = BASE_DIR / "assets" / "control_concrete.png"
 _GUNMETAL_PALETTE = [SPECTRA6["white"], SPECTRA6["black"]]
+# The concrete plate dithers to the same K+W pair as the gunmetal: one constant,
+# so the two achromatic plates cannot drift apart.
+_CONCRETE_PALETTE = _GUNMETAL_PALETTE
 
 # The letter aged-paper plate dithers to white/yellow/red/green: cream paper as
 # a W+Y stipple, sepia foxing as the documented R+G brown recipe. Black is
@@ -23773,6 +23827,362 @@ def render_vhs_frame(time_str: str, quote_row: dict, width: int, height: int) ->
 
 
 # ---------------------------------------------------------------------------
+# control — the Astral Plane, after Remedy's *Control* (2019)
+# ---------------------------------------------------------------------------
+# A custom frame: the quote as one of the game's title cards, set in the
+# Board's white void. The composition is the three registers the game is
+# built from, stacked — the Astral Plane (white void, floating stone blocks,
+# the Board's inverted black pyramid hanging over everything), the Oldest
+# House (a brutalist concrete plinth carrying a black wayfinding sign in
+# white condensed caps), and the Hiss (the matched phrase in red, bleeding a
+# stippled halo into the void the way the resonance bleeds into the House).
+#
+# **Why a frame and not a border painter.** The shared literary layout centres
+# its block over the whole page and leaves no room for a plinth, and the
+# blocks have to *float in the margins around* the quote rather than under it.
+# The quote rect is therefore fixed and the furniture is placed against it.
+#
+# **The blocks are drawn, not dithered plates.** The Astral Plane is flat
+# white geometry under a flat light, which ImageDraw primitives reproduce
+# exactly: each block is three polygons — a white top, a lit side and a
+# shadow side — under one upper-left light, with the two side faces carrying
+# K+W ordered stipples at two densities. That is the ``pride`` / ``plaque``
+# reading of "shading is an achromatic overlay", at its simplest: no gradient,
+# so the plain 8x8 tile is right and a jitter would only add noise to a
+# surface whose whole character is machined smoothness.
+#
+# **The plinth is jittered, the blocks are not.** Poured concrete is the
+# opposite surface — the ``bakelite`` moulding lesson applies verbatim: an
+# ordered tile alone reads as a screen door across a wide field, a hash alone
+# reads as sandpaper, and the ordered rank jittered by a positional hash
+# reads as cast stone. Formwork seams and a row of tie-holes are the
+# brutalist tell; without them a grey band is just a grey band.
+#
+# **The Hiss is a bloom on a white ground**, the first use of
+# ``paint_neon_mask`` on white. Every earlier bloom lit a dark ground, where
+# a falling density of a bright ink reads as light; here a falling density of
+# *red* on white reads as a coral stain spreading from the phrase — which is
+# what the Hiss looks like in the game, a red that infects rather than
+# illuminates. ``ground`` is pinned to white so the halo cannot eat the black
+# prose it sits next to.
+#
+# **The Board speaks in pairs**, and that is the attribution: real Board
+# dialogue offers two words with a slash where one would do
+# ("Director/Candidate", "Object/Conduit"), so the sign reads
+# ``AUTHOR/ORIGIN`` and ``WORK/VESSEL`` over the corpus row's own author and
+# title. Nothing is invented — the pairs are labels, the values are the row's.
+#
+# **No time surface beyond the matched phrase**: the Astral Plane has no
+# clock, and a "SECTOR 07" gag would be a number bolted on (the reason
+# ``pride`` and ``outrun`` del-assert ``time_str``). Pinned byte-identical
+# across every time by ``TestControlFrame``.
+#
+# Composed at the canonical 800x480 and NEAREST-downsampled for a non-native
+# request — the ``metro`` convention — because every block, the pyramid and
+# the sign are absolute panel coordinates.
+# ---------------------------------------------------------------------------
+_CONTROL_QUOTE_RECT = (130, 100, 670, 372)
+_CONTROL_PLINTH_Y = 392
+_CONTROL_SIGN_RECT = (40, 418, 760, 462)
+_CONTROL_SEAL_CENTRE = (74, 440)
+_CONTROL_SEAL_RADIUS = 14
+# The Board: an inverted pyramid hanging from the top edge, apex down.
+_CONTROL_BOARD = ((338, 0), (462, 0), (400, 84))
+# Floating blocks as (top_vertex_x, top_vertex_y, side, height). Kept clear of
+# the quote rect on both sides; the four small ones sit in the top margin
+# either side of the pyramid as distant blocks.
+_CONTROL_BLOCKS = (
+    (70, 18, 36, 36),
+    (24, 108, 16, 18),
+    (736, 26, 40, 40),
+    (700, 146, 14, 14),
+    (58, 232, 28, 30),
+    (748, 250, 24, 48),
+    (94, 322, 30, 30),
+    (712, 316, 34, 34),
+    (200, 34, 8, 8),
+    (590, 24, 10, 10),
+    (296, 46, 9, 9),
+    (516, 50, 9, 9),
+)
+_CONTROL_ISO = (0.866, 0.5)          # isometric axis: (cos 30°, sin 30°)
+_CONTROL_LIT_FACE = 0.25             # black density on the face toward the light
+_CONTROL_SHADE_FACE = 0.56           # black density on the face away from it
+_CONTROL_BOARD_FACE = 0.68           # the Board's lit face: darker than any block
+_CONTROL_CONCRETE = (0.30, 0.46)     # black density at the plinth's top / bottom
+_CONTROL_CONCRETE_JITTER = 12        # ± ranks of positional jitter on the 8x8 tile
+_CONTROL_TIE_HOLES_Y = 404
+_CONTROL_SEAMS_X = (200, 400, 600)
+_CONTROL_HISS_RADIUS = 6
+_CONTROL_HISS_CAP = 0.62
+_CONTROL_HISS_GAMMA = 1.6
+_CONTROL_TRACKING = 2
+_CONTROL_SIGN_GAP = 24          # clear space between the name run and the credit column
+_CONTROL_CREDIT_SIZE = 12
+_CONTROL_CREDIT_FLOOR = 10      # below this a credit is ellipsised rather than shrunk further
+# Hiss resonance: thin horizontal bands of the phrase echoed sideways as a
+# half-density red stipple — (band top as a fraction of the phrase height,
+# band height in px, horizontal shift in px). Echoes only, never moves:
+# the phrase itself stays whole so the time stays legible.
+_CONTROL_RESONANCE = ((0.18, 3, 9), (0.47, 2, -7), (0.74, 3, 6))
+_CONTROL_RESONANCE_DENSITY = 0.5
+
+
+def _control_fill_polygon(image: Image.Image, polygon, density: float) -> None:
+    """Fill a polygon with a K+W ordered stipple at ``density`` black.
+
+    A 1-bit polygon mask clips the fill (the ``_vitrail_fill_polygon`` shape),
+    and the rank is read off ``BAYER_8x8`` at absolute coordinates so adjacent
+    faces share one phase. Unjittered on purpose — see the section comment.
+    """
+    xs = [int(p[0]) for p in polygon]
+    ys = [int(p[1]) for p in polygon]
+    w, h = image.size
+    x0, y0 = max(0, min(xs)), max(0, min(ys))
+    x1, y1 = min(w, max(xs) + 1), min(h, max(ys) + 1)
+    if x1 <= x0 or y1 <= y0:
+        return
+    mask = Image.new("1", (x1 - x0, y1 - y0), 0)
+    ImageDraw.Draw(mask).polygon([(int(px) - x0, int(py) - y0) for px, py in polygon], fill=1)
+    mp = mask.load()
+    px = image.load()
+    black, white = SPECTRA6["black"], SPECTRA6["white"]
+    cut = density * 64
+    for yy in range(y1 - y0):
+        ay = y0 + yy
+        row = BAYER_8x8[ay % 8]
+        for xx in range(x1 - x0):
+            if mp[xx, yy]:
+                ax = x0 + xx
+                px[ax, ay] = black if row[ax % 8] < cut else white
+
+
+def _control_block_faces(top_x: int, top_y: int, side: int, height: int):
+    """The three visible faces of an isometric block whose highest vertex is
+    ``(top_x, top_y)``: top rhombus, left (lit) face, right (shadow) face."""
+    ux, uy = _CONTROL_ISO
+    dx, dy = side * ux, side * uy
+    top = (top_x, top_y)
+    right = (top_x + dx, top_y + dy)
+    left = (top_x - dx, top_y + dy)
+    near = (top_x, top_y + 2 * dy)
+    top_face = [top, right, near, left]
+    left_face = [left, near, (near[0], near[1] + height), (left[0], left[1] + height)]
+    right_face = [near, right, (right[0], right[1] + height), (near[0], near[1] + height)]
+    return top_face, left_face, right_face
+
+
+def _control_outline(draw: ImageDraw.ImageDraw, polygon, width: int = 2) -> None:
+    pts = [(int(round(x)), int(round(y))) for x, y in polygon]
+    draw.line(pts + [pts[0]], fill=SPECTRA6["black"], width=width, joint="curve")
+
+
+def _control_paint_blocks(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """The Astral Plane's floating stone: isometric blocks in the margins.
+
+    Each block is painted back-to-front — top face white, lit face light
+    stipple, shadow face dark stipple — then outlined, so a block overlapping
+    another reads as in front of it rather than merging into one silhouette.
+    """
+    for top_x, top_y, side, height in _CONTROL_BLOCKS:
+        top_face, left_face, right_face = _control_block_faces(top_x, top_y, side, height)
+        draw.polygon([(int(round(x)), int(round(y))) for x, y in top_face], fill=SPECTRA6["white"])
+        _control_fill_polygon(image, left_face, _CONTROL_LIT_FACE)
+        _control_fill_polygon(image, right_face, _CONTROL_SHADE_FACE)
+        stroke = 1 if side < 12 else 2
+        for face in (top_face, left_face, right_face):
+            _control_outline(draw, face, width=stroke)
+
+
+def _control_paint_board(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """The Board: an inverted black pyramid hanging from the top of the void.
+
+    Two faces meet on a vertical edge under the apex — the lit face a dense
+    stipple, the shadow face solid black — so the shape reads as a solid with
+    a corner toward the viewer rather than a flat triangle.
+    """
+    (ax, ay), (bx, by), (cx, cy) = _CONTROL_BOARD
+    _control_fill_polygon(image, [(ax, ay), (cx, ay), (cx, cy)], _CONTROL_BOARD_FACE)
+    draw.polygon([(cx, ay), (bx, by), (cx, cy)], fill=SPECTRA6["black"])
+    _control_outline(draw, [(ax, ay), (bx, by), (cx, cy)], width=2)
+    draw.line([(cx, ay), (cx, cy)], fill=SPECTRA6["black"], width=2)
+
+
+def _control_paint_concrete_stipple(image: Image.Image, top: int) -> None:
+    """Fallback plinth texture when the concrete plate asset is missing.
+
+    Hash-jittered ordered dither (the ``bakelite`` moulding recipe) at a
+    density that deepens toward the bottom edge. Reads as cast stone at a
+    glance; the committed plate carries the board grain this cannot.
+    """
+    width, height = image.size
+    px = image.load()
+    black = SPECTRA6["black"]
+    span = max(1, height - top)
+    d0, d1 = _CONTROL_CONCRETE
+    jitter = _CONTROL_CONCRETE_JITTER
+    for y in range(top, height):
+        cut = (d0 + (d1 - d0) * (y - top) / span) * 64
+        row = BAYER_8x8[y % 8]
+        for x in range(width):
+            rank = row[x % 8] + (position_noise(x, y) % (2 * jitter + 1)) - jitter
+            if rank < cut:
+                px[x, y] = black
+
+
+def _control_paint_plinth(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
+    """The Oldest House: a band of board-formed concrete across the foot.
+
+    Prefers the committed continuous-tone plate (``CONTROL_PLATE``), dithered
+    to white+black at render time so the timber grain of the shuttering, the
+    tonal step between formwork panels and the aggregate pits all survive as
+    local stipple density — the ``grimdark`` / ``letter`` plate capability.
+    Falls back to the jittered stipple when the asset is missing. Formwork
+    seams and a row of tie-holes go on top in either case: without them a
+    grey band is just a grey band.
+    """
+    width, height = image.size
+    black = SPECTRA6["black"]
+    top = _CONTROL_PLINTH_Y
+    if height > top:
+        plate = _load_dithered_plate(CONTROL_PLATE, width, height - top, palette=_CONCRETE_PALETTE)
+        if plate is not None:
+            image.paste(plate, (0, top))
+        else:
+            _control_paint_concrete_stipple(image, top)
+    draw.line([(0, top), (width, top)], fill=black, width=2)
+    for sx in _CONTROL_SEAMS_X:
+        draw.line([(sx, top), (sx, height)], fill=black, width=1)
+    for hx in range(100, width, 200):
+        draw.ellipse((hx - 3, _CONTROL_TIE_HOLES_Y - 3, hx + 3, _CONTROL_TIE_HOLES_Y + 3), fill=black)
+
+
+def _control_paint_seal(draw: ImageDraw.ImageDraw) -> None:
+    """The Bureau's device on the sign: a ring around an inverted triangle."""
+    cx, cy = _CONTROL_SEAL_CENTRE
+    r = _CONTROL_SEAL_RADIUS
+    white = SPECTRA6["white"]
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=white, width=2)
+    tri = [(cx - 8, cy - 6), (cx + 8, cy - 6), (cx, cy + 8)]
+    draw.polygon(tri, outline=white, fill=None)
+    draw.ellipse((cx - 2, cy - 2, cx + 2, cy + 2), fill=white)
+
+
+def _control_board_lines(quote_row: dict) -> list[str]:
+    """Attribution in the Board's paired diction — labels only; values are the row's."""
+    author = (quote_row.get("author") or "").strip()
+    title = (quote_row.get("title") or "").strip() or (fallback_title(quote_row) or "")
+    lines = []
+    if author:
+        lines.append(f"AUTHOR/ORIGIN: {author.upper()}")
+    if title:
+        lines.append(f"WORK/VESSEL: {title.upper()}")
+    return lines
+
+
+def _control_paint_sign(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """The black wayfinding sign on the plinth: Bureau device and name at the
+    left, the Board's attribution pairs right-aligned."""
+    x0, y0, x1, y1 = _CONTROL_SIGN_RECT
+    white = SPECTRA6["white"]
+    draw.rectangle((x0, y0, x1, y1), fill=SPECTRA6["black"])
+    _control_paint_seal(draw)
+    name_font = load_font([(OSWALD_VARIABLE, "Bold"), (ANTONIO_VARIABLE, "Bold"), *META_FONT_BOLD_CANDIDATES], size=17)
+    sub_font = load_font([(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES], size=10)
+    text_x = _CONTROL_SEAL_CENTRE[0] + _CONTROL_SEAL_RADIUS + 12
+    name_w = draw_tracked(draw, (text_x, y0 + 5), "FEDERAL BUREAU OF CONTROL", name_font, white,
+                          tracking=_CONTROL_TRACKING)
+    draw_tracked(draw, (text_x, y0 + 29), "THE OLDEST HOUSE", sub_font, white, tracking=3)
+
+    # The credit column's budget is measured off the name run actually painted,
+    # not a constant sized for one face: the Antonio -> Oswald switch grew the
+    # name by 36 px and a fixed budget let long titles overprint it.
+    credit_candidates = [(OSWALD_VARIABLE, "Medium"), (ANTONIO_VARIABLE, "SemiBold"), *META_FONT_BOLD_CANDIDATES]
+    right = x1 - 14
+    limit = right - (text_x + name_w + _CONTROL_SIGN_GAP)
+    lines = _control_board_lines(quote_row)
+    y = y0 + 6 if len(lines) > 1 else y0 + 14
+    for text in lines:
+        font, text = fit_text_to_width(draw, text, credit_candidates, _CONTROL_CREDIT_SIZE, limit,
+                                       floor=_CONTROL_CREDIT_FLOOR, tracking=1)
+        draw_tracked(draw, (right, y), text, font, white, tracking=1, anchor_right=True)
+        y += 17
+
+
+def _control_paint_resonance(image: Image.Image, hot: Image.Image) -> None:
+    """The Hiss's signal tearing: a few thin bands of the matched phrase echoed
+    sideways as a half-density red stipple.
+
+    An *echo*, not a tear — the ``vhs`` lesson in the other direction. Moving
+    the band would cut the time phrase, which is the clock's whole job; an
+    echo painted only onto white beside the intact phrase reads as the
+    resonance the game overlays on corrupted text while every glyph stays
+    whole. ``ground``-style: only white pixels are written, so the echo can
+    never overwrite prose, the phrase or its bloom.
+    """
+    bbox = hot.getbbox()
+    if bbox is None:
+        return
+    x0, y0, x1, y1 = bbox
+    span = y1 - y0
+    width, height = image.size
+    hp, px = hot.load(), image.load()
+    red, white = SPECTRA6["red"], SPECTRA6["white"]
+    cut = _CONTROL_RESONANCE_DENSITY * 64
+    for frac, band_h, shift in _CONTROL_RESONANCE:
+        by0 = y0 + int(frac * span)
+        for y in range(by0, min(height, by0 + band_h)):
+            row = BAYER_8x8[y % 8]
+            for x in range(x0, x1):
+                if hp[x, y] <= 128:
+                    continue
+                tx = x + shift
+                if 0 <= tx < width and px[tx, y] == white and row[tx % 8] < cut:
+                    px[tx, y] = red
+
+
+def _control_paint_quote(image: Image.Image, draw: ImageDraw.ImageDraw, quote_row: dict) -> None:
+    """Black condensed prose in the void; the matched phrase in Hiss red with a
+    coral bloom stippled into the white around it."""
+    prose, hot, _ = wrap_quote_into_masks(
+        draw, image.size, quote_row, _CONTROL_QUOTE_RECT, theme="control",
+        font_max=40, font_min=16, line_height_mult=1.22,
+    )
+    # Binary, not antialiased: a mid-grey edge pixel snaps to *red* (it is
+    # nearer red than black in RGB distance), so the prose is thresholded
+    # before it is pasted rather than left for the palette snap to guess at.
+    image.paste(SPECTRA6["black"], (0, 0), prose.point(lambda v: 255 if v > 128 else 0))
+    paint_neon_mask(
+        image, hot, SPECTRA6["red"], SPECTRA6["red"],
+        radius=_CONTROL_HISS_RADIUS, gamma=_CONTROL_HISS_GAMMA, cap=_CONTROL_HISS_CAP,
+        ground=frozenset({SPECTRA6["white"]}), tile=BAYER_8x8,
+    )
+    _control_paint_resonance(image, hot)
+    prose.close()
+    hot.close()
+
+
+def render_control_frame(time_str: str, quote_row: dict, width: int, height: int) -> Image.Image:
+    """The Astral Plane title card (see the module section comment above).
+
+    ``time_str`` is unused by design: the matched phrase carries the time.
+    """
+    del time_str
+    image = Image.new("RGB", (800, 480), color=SPECTRA6["white"])
+    draw = ImageDraw.Draw(image)
+    _control_paint_plinth(image, draw)
+    _control_paint_board(image, draw)
+    _control_paint_blocks(image, draw)
+    _control_paint_quote(image, draw, quote_row)
+    _control_paint_sign(image, draw, quote_row)
+    image = snap_image_to_palette(image, SPECTRA6_PALETTE)
+    if (width, height) != (800, 480):
+        image = image.resize((width, height), Image.Resampling.NEAREST)
+    return image
+
+
+
+# ---------------------------------------------------------------------------
 # cardcatalog — a library catalogue card with a date-due stamp grid
 # ---------------------------------------------------------------------------
 # The most on-brand object in the rotation: the one theme that is *about books
@@ -24481,40 +24891,19 @@ def _bakelite_paint_tube(image: Image.Image, screen: Image.Image) -> None:
 
 
 def _bakelite_tracked_width(draw, text: str, font) -> float:
-    if not text:
-        return 0.0
-    return sum(draw.textlength(ch, font=font) for ch in text) + _BAKELITE_TRACKING * (len(text) - 1)
+    return tracked_width(draw, text, font, tracking=_BAKELITE_TRACKING)
 
 
 def _bakelite_draw_tracked(draw, x: float, y: int, text: str, font, fill) -> None:
-    """Letterspaced caps — the wide silkscreened legend of an instrument panel.
-
-    PIL has no tracking, so the string is stepped a glyph at a time. Works
-    against an ``"L"`` bloom mask as readily as against the image.
-    """
-    for ch in text:
-        draw.text((x, y), ch, font=font, fill=fill)
-        x += draw.textlength(ch, font=font) + _BAKELITE_TRACKING
+    """The silkscreened legend at this theme's tracking — see ``draw_tracked``."""
+    draw_tracked(draw, (x, y), text, font, fill, tracking=_BAKELITE_TRACKING)
 
 
 def _bakelite_fit_text(draw, text: str, size: int, max_width: int, floor: int = 17):
-    """Shrink a chrome readout until it fits its cell, then ellipsise.
-
-    The floor matters more than the shrink. Allowed to keep stepping down, a
-    long book title reaches a size at which it technically fits and is no longer
-    readable across a room — which for a clock is the same as not rendering it.
-    Below ``floor`` the value is truncated instead, so the cell always carries
-    something a reader can actually take in.
-    """
-    while size > floor:
-        font = load_font(theme_font_candidates("bakelite", "quote_regular"), size=size)
-        if draw.textlength(text, font=font) <= max_width:
-            return font, text
-        size -= 2
-    font = load_font(theme_font_candidates("bakelite", "quote_regular"), size=floor)
-    while len(text) > 1 and draw.textlength(text, font=font) > max_width:
-        text = text[:-2].rstrip(" ,.;:") + "…"
-    return font, text
+    """A chrome readout shrunk to its cell, then ellipsised at the floor — see
+    ``fit_text_to_width``; the cells are drawn as single kerned runs."""
+    return fit_text_to_width(draw, text, theme_font_candidates("bakelite", "quote_regular"),
+                             size, max_width, floor=floor)
 
 
 def _bakelite_paint_phosphor(image: Image.Image, mask: Image.Image, core=None,
@@ -25710,6 +26099,64 @@ def draw_centred_styled_lines(draw: ImageDraw.ImageDraw, wrapped, *, x0: int, x1
     return y
 
 
+def tracked_width(draw, text: str, font, *, tracking: float) -> float:
+    """Width of ``text`` as ``draw_tracked`` will paint it: per-glyph advances
+    plus ``tracking`` between glyphs. A per-glyph sum, not ``textlength`` of the
+    whole string, because the glyph-by-glyph draw drops kerning."""
+    if not text:
+        return 0.0
+    return sum(draw.textlength(ch, font=font) for ch in text) + tracking * (len(text) - 1)
+
+
+def draw_tracked(draw, xy, text: str, font, fill, *, tracking: float, anchor_right: bool = False) -> float:
+    """Letterspaced caps — an instrument panel's silkscreened legend, a
+    wayfinding sign, a banknote masthead. Returns the run's width.
+
+    PIL has no tracking, so the string is stepped a glyph at a time. Works
+    against an ``"L"`` bloom mask as readily as against the image. With
+    ``anchor_right`` the run ends at ``xy[0]`` instead of starting there.
+    Shared by ``bakelite`` and ``control``; the two used to carry their own
+    copies of this loop 800 lines apart.
+    """
+    x, y = xy
+    width = tracked_width(draw, text, font, tracking=tracking)
+    if anchor_right:
+        x -= width
+    for ch in text:
+        draw.text((x, y), ch, font=font, fill=fill)
+        x += draw.textlength(ch, font=font) + tracking
+    return width
+
+
+def fit_text_to_width(draw, text: str, candidates, size: int, max_width: float, *,
+                      floor: int, tracking: float = 0):
+    """Shrink a chrome string until it fits, then ellipsise at the floor.
+
+    Returns ``(font, text)``. The floor matters more than the shrink: allowed to
+    keep stepping down, a long book title reaches a size at which it technically
+    fits and is no longer readable across a room — which for a clock is the
+    same as not rendering it. Below ``floor`` the value is truncated with an
+    ellipsis instead, so the cell always carries something a reader can take
+    in, and never a bare mid-word fragment. Measured the way it will be
+    painted: as one kerned run when ``tracking`` is 0, glyph by glyph (via
+    ``tracked_width``) otherwise.
+    """
+    def measure(candidate: str, font) -> float:
+        if tracking:
+            return tracked_width(draw, candidate, font, tracking=tracking)
+        return draw.textlength(candidate, font=font)
+
+    while size > floor:
+        font = load_font(candidates, size=size)
+        if measure(text, font) <= max_width:
+            return font, text
+        size -= 2
+    font = load_font(candidates, size=floor)
+    while len(text) > 1 and measure(text, font) > max_width:
+        text = text[:-2].rstrip(" ,.;:") + "…"
+    return font, text
+
+
 def draw_truncated_centred_byline(draw: ImageDraw.ImageDraw, quote_row: dict, *,
                                   centre: int, baseline: int, max_width: int,
                                   font, fill) -> None:
@@ -26657,6 +27104,8 @@ def render(time_str: str, quote_row: dict, width: int, height: int, mode: str = 
         return render_autochrome_frame(time_str, quote_row, width, height)
     if theme == "photo":
         return render_photo_frame(time_str, quote_row, width, height)
+    if theme == "control":
+        return render_control_frame(time_str, quote_row, width, height)
     colors = THEMES[theme]
     image = Image.new("RGB", (width, height), color=colors["page_bg"])
     _paint_theme_border(image, theme, colors)

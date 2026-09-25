@@ -58,7 +58,7 @@ For ratios above 50%, swap `dark`/`light` and pass the complementary density (e.
 
 ### Gradient density — the glow primitive
 
-Every recipe above holds density **constant** across a region: two inks at a fixed ratio synthesise one flat colour. `paint_neon_mask(image, mask, core, glow, radius, gamma, cap, ground)` is the other axis — **one** ink at a *falling* density, so the eye integrates a gradient rather than a flat tone. Introduced for `izakaya`'s neon; reusable by anything that needs light to fall off (a lamp, a candle, a screen's spill, a halo).
+Every recipe above holds density **constant** across a region: two inks at a fixed ratio synthesise one flat colour. `paint_neon_mask(image, mask, core, glow, radius, gamma, cap, ground)` is the other axis — **one** ink at a *falling* density, so the eye integrates a gradient rather than a flat tone. Introduced for `izakaya`'s neon; reusable by anything that needs light to fall off (a lamp, a candle, a screen's spill, a halo). `control` is the first use on a *white* ground, where a falling density of red reads not as light but as a stain spreading from the phrase — the Hiss — with `ground` pinned to white so the halo cannot eat the black prose beside it.
 
 It blurs an `"L"` glyph/shape mask (`ImageFilter.GaussianBlur`, the only use of `ImageFilter` in the renderer) and reads the blurred field back per pixel as the Bayer density. Four things about tuning it, all learned against the panel rather than derived:
 
