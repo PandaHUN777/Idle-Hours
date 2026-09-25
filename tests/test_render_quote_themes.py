@@ -4467,3 +4467,25 @@ class TestBoschFrame:
     def test_bare_row_still_renders(self):
         image = self._render({**self.ROW, "author": "", "title": ""})
         assert distinct_inks(image) <= set(rq.SPECTRA6.values())
+
+    def test_rank_field_is_clamped_and_immutable(self):
+        """Every jittered rank lies in 0..63, so a share of 0 paints nothing
+        and a share of 1 paints everything; and the field is a tuple, built
+        once and published whole (preview threads may race to build it)."""
+        field = rq._bosch_rank_field()
+        assert isinstance(field, tuple) and len(field) == 480
+        assert all(len(row) == 800 for row in field)
+        assert min(min(row) for row in field) == 0 and max(max(row) for row in field) == 63
+        white, green = rq.SPECTRA6["white"], rq.SPECTRA6["green"]
+        assert all(rq._bosch_pick(r, ((white, 0.0), (green, 1))) == green for r in range(64))
+
+    def test_parchment_carries_no_stray_red(self):
+        """Red on the banderole belongs to the rubricated phrase alone: with
+        no phrase matched, the scroll's centre band has no red at all."""
+        row = {**self.ROW, "matched_text": "no such phrase"}
+        image = self._render(row)
+        _, rect = self._lettering(row)
+        x0, y0, x1, y1 = rect
+        mid = (y0 + y1) // 2
+        band = image.crop((x0 + 4, mid - 20, x1 - 4, mid + 20))
+        assert ink_counts(band).get(rq.SPECTRA6["red"], 0) == 0

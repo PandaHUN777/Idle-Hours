@@ -24837,10 +24837,10 @@ _BOSCH_CRACK_SEED = 0xB05C
 _BOSCH_JITTER = 9                # ± ranks of positional jitter on the 8x8 tile
 
 
-_BOSCH_RANK_FIELD: list[bytes] = []
+_BOSCH_RANK_FIELD: tuple[bytes, ...] = ()
 
 
-def _bosch_rank_field() -> list[bytes]:
+def _bosch_rank_field() -> tuple[bytes, ...]:
     """The 8x8 Bayer rank plus a seeded jitter, for the whole canvas, once.
 
     The ``bakelite`` moulding recipe — ordered dither with its rank nudged by
@@ -24848,18 +24848,31 @@ def _bosch_rank_field() -> list[bytes]:
     ``Random.randbytes`` field rather than a ``position_noise`` call per
     pixel: this frame reads ~450k ranks per render, and a Python call each
     was a fifth of the render time (``tarot``'s vellum made the same move for
-    the same reason). Stored offset by ``_BOSCH_JITTER`` so it fits in bytes;
-    readers subtract it. Seeded, so the frame stays byte-identical across
+    the same reason). Seeded, so the frame stays byte-identical across
     processes where ``hash()`` would not.
+
+    **Clamped to 0..63.** Unclamped, the jitter pushes ~4% of ranks below 0
+    and ~4% to 64 or above, so a share of exactly 0 still painted its ink
+    (white specks in the meadow's dark foot) and a test like ``rank > 63``
+    fired on the scroll's centreline, flecking the parchment red behind the
+    rubricated phrase. With the clamp, share 0 means none and share 1 means
+    all, which is what every ``_bosch_pick`` call assumes.
+
+    Built into a local and published in one assignment: the curator UI
+    renders previews on concurrent threads, and a list filled in place could
+    be read half-built by a second thread.
     """
-    if not _BOSCH_RANK_FIELD:
+    global _BOSCH_RANK_FIELD
+    field = _BOSCH_RANK_FIELD
+    if not field:
         noise = random.Random(_BOSCH_CRACK_SEED ^ 0x5A5A).randbytes(800 * 480)
-        span = 2 * _BOSCH_JITTER + 1
-        for y in range(480):
-            row = BAYER_8x8[y % 8]
-            base = y * 800
-            _BOSCH_RANK_FIELD.append(bytes(row[x % 8] + noise[base + x] % span for x in range(800)))
-    return _BOSCH_RANK_FIELD
+        span, j = 2 * _BOSCH_JITTER + 1, _BOSCH_JITTER
+        field = tuple(
+            bytes(min(63, max(0, BAYER_8x8[y % 8][x % 8] + noise[y * 800 + x] % span - j)) for x in range(800))
+            for y in range(480)
+        )
+        _BOSCH_RANK_FIELD = field
+    return field
 
 
 def _bosch_pick(rank: int, parts):
@@ -24886,12 +24899,12 @@ def _bosch_paint(tile: Image.Image, mask: Image.Image, shade) -> None:
         return
     px, mp = tile.load(), mask.load()
     ox, oy = getattr(tile, "_bosch_origin", (0, 0))
-    field, j = _bosch_rank_field(), _BOSCH_JITTER
+    field = _bosch_rank_field()
     for y in range(bbox[1], bbox[3]):
         ranks = field[(y + oy) % 480]
         for x in range(bbox[0], bbox[2]):
             if mp[x, y] > 127:
-                ink = shade(x, y, ranks[(x + ox) % 800] - j)
+                ink = shade(x, y, ranks[(x + ox) % 800])
                 if ink is not None:
                     px[x, y] = ink
 
@@ -25002,7 +25015,7 @@ def _bosch_meadow(tile, top: int) -> None:
     white, yellow, green, black = (_bosch_ink(n) for n in ("white", "yellow", "green", "black"))
     px = tile.load()
     ox, oy = getattr(tile, "_bosch_origin", (0, 0))
-    field, j = _bosch_rank_field(), _BOSCH_JITTER
+    field = _bosch_rank_field()
     sx = [math.sin(x * 0.05) for x in range(w)]
     cx = [math.cos(x * 0.05) for x in range(w)]
     span = max(1, h - top)
@@ -25014,7 +25027,7 @@ def _bosch_meadow(tile, top: int) -> None:
         for x in range(w):
             t = base + sx[x] * cy_ + cx[x] * sy_
             t = 0.0 if t < 0.0 else 1.0 if t > 1.0 else t
-            rank = ranks[(x + ox) % 800] - j
+            rank = ranks[(x + ox) % 800]
             c1 = 14.08 * (1 - t)                        # white  0.22 (1 - t)
             c2 = c1 + 21.76 * (1 - t) + 3.84            # yellow 0.34 (1 - t) + 0.06
             if rank < c1:
