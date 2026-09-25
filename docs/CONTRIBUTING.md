@@ -16,7 +16,9 @@ not public issues.
 ## Dev setup
 
 Python 3.11 or 3.12. The runtime is pure stdlib + Pillow; the Pi deployment
-additionally needs `inky` and `gpiozero`.
+additionally needs `inky` and `gpiozero` plus an OS GPIO backend. Raspberry Pi
+OS deployments use `python3-lgpio` and `python3-rpi-lgpio` from apt with a
+`--system-site-packages` virtualenv; see the Pi setup guide.
 
 ```bash
 git clone https://github.com/gkoch02/idle-hours.git

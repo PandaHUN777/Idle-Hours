@@ -10,19 +10,20 @@ If your Pi already has the Pimoroni Inky stack working in a virtualenv, this is 
 
 ```bash
 source ~/.virtualenvs/pimoroni/bin/activate
-git clone git@github.com:gkoch02/idle-hours.git
-cd idle-hours
+git clone git@github.com:gkoch02/idle-hours.git ~/IdleHours
+cd ~/IdleHours
+pip install -e '.[pi]'
 
 # Smoke-test the render pipeline with argparse defaults — no config yet.
-python3 run_clock.py --once
-python3 display_inky.py output/current.png
+idle-hours run --once --buttons-off
+idle-hours display output/current.png
 
 # Stage a config (the appliance preset), then run the loop through it.
 # This matches what the systemd unit will do later.
 sudo install -d -o "$USER" -g "$USER" -m 0750 /var/lib/idle-hours
 sudo install -o "$USER" -g "$USER" -m 0640 \
-    assets/config.toml.example /var/lib/idle-hours/config.toml
-python3 run_clock.py --config /var/lib/idle-hours/config.toml
+    idle_hours/assets/config.toml.example /var/lib/idle-hours/config.toml
+idle-hours run --config /var/lib/idle-hours/config.toml
 ```
 
 This works from the prebuilt runtime assets already committed in the repo:
@@ -60,13 +61,13 @@ If the one-shot render and one-shot display both work, you can move on to making
 
 A sample systemd unit is included at:
 
-- `idle-hours.service.example`
+- `ops/idle-hours.service.example`
 
 Typical install on the Pi:
 
 ```bash
 cd ~/IdleHours
-sudo cp idle-hours.service.example /etc/systemd/system/idle-hours.service
+sudo cp ops/idle-hours.service.example /etc/systemd/system/idle-hours.service
 
 # The sample unit passes `--config %S/idle-hours/config.toml` exclusively
 # and a missing --config path is a hard error by design — so stage the
@@ -75,7 +76,7 @@ sudo cp idle-hours.service.example /etc/systemd/system/idle-hours.service
 # mirrors the ownership / mode systemd would've applied.
 sudo install -d -o pi -g pi -m 0750 /var/lib/idle-hours
 sudo install -o pi -g pi -m 0640 \
-    assets/config.toml.example /var/lib/idle-hours/config.toml
+    idle_hours/assets/config.toml.example /var/lib/idle-hours/config.toml
 sudoedit /var/lib/idle-hours/config.toml            # tune keys for this appliance
 
 sudo systemctl daemon-reload
@@ -85,11 +86,15 @@ sudo systemctl status idle-hours.service
 
 Notes:
 - the unit file itself only passes `--config %S/idle-hours/config.toml`. All tunable knobs — theme, mode, quiet hours, web UI, startup image, shutdown command, button opt-out — live in `/var/lib/idle-hours/config.toml`. Day-to-day changes are `sudoedit` + `systemctl restart`; `daemon-reload` is only needed when the unit file itself changes
-- every key in the config maps 1:1 to an argparse `dest` on `run_clock.py` (snake_case — `display_script`, `quiet_start`, `web_bind`, etc.). `assets/config.toml.example` ships every supported key with inline documentation
-- CLI flags still work and override config values — useful for ad-hoc troubleshooting (`systemctl stop` then `python3 run_clock.py --once --mode debug ...`)
-- edit `User=`, `WorkingDirectory=`, and `ExecStart=` in the unit only if your Pi paths differ
+- every key in the config maps 1:1 to an argparse `dest` on `run_clock.py` (snake_case — `display_script`, `quiet_start`, `web_bind`, etc.). `idle_hours/assets/config.toml.example` ships every supported key with inline documentation
+- CLI flags still work and override config values — useful for ad-hoc troubleshooting (`systemctl stop` then `idle-hours run --once --mode debug ...`)
+- edit `User=` and `ExecStart=` in the unit only if your Pi paths differ; keep
+  `WorkingDirectory` and `LG_WD` on `/var/lib/idle-hours` so sandboxed `lgpio`
+  can create and open its notification FIFO
 - if `inky-photo-frame.service` is still enabled, stop/disable it first so Idle Hours can own the display
-- install the `gpiozero` package into the same virtualenv if you want Inky button support (short press + 2s long press); otherwise set `buttons_off = true` in the config
+- for Inky button support, install Raspberry Pi OS's `python3-lgpio` and
+  `python3-rpi-lgpio`, and create the virtualenv with `--system-site-packages`;
+  `gpiozero` alone does not provide a pin backend
 - the unit uses `Type=notify` + `WatchdogSec=180s` so systemd restarts a wedged-but-breathing loop, not just a fully-dead one. The `sd_notify` client in `sd_notify.py` is pure stdlib (no `systemd-python` dep); off systemd it is a no-op so `python3 run_clock.py` on a dev host behaves identically.
 - the unit declares `StateDirectory=idle-hours`. systemd creates `/var/lib/idle-hours/` owned by `pi` before the service starts, and the sample config's `state_path` / `history_path` / `telemetry_path` / `pidfile` / `web_token_file` all point into that directory.
 
@@ -174,7 +179,7 @@ Wire the JSON form into a once-a-day cron / systemd timer if you want passive al
 
 ```bash
 # Loopback-only, no auth. Safe for SSH port-forward from your laptop.
-python3 run_clock.py --display-script display_inky.py --web-bind 127.0.0.1:8080
+idle-hours run --display-script display_inky.py --web-bind 127.0.0.1:8080
 # then on the laptop: ssh -L 8080:127.0.0.1:8080 pi@idle-hours
 # and open http://127.0.0.1:8080
 
@@ -183,13 +188,13 @@ python3 run_clock.py --display-script display_inky.py --web-bind 127.0.0.1:8080
 mkdir -p ~/.idle-hours
 python3 -c "import secrets; print(secrets.token_urlsafe(32))" > ~/.idle-hours/web.token
 chmod 640 ~/.idle-hours/web.token
-python3 run_clock.py \
+idle-hours run \
   --display-script display_inky.py \
   --web-bind 0.0.0.0:8080 \
   --web-token-file ~/.idle-hours/web.token
 ```
 
-To enable the UI under systemd, uncomment `web_bind` / `web_token_file` in `/var/lib/idle-hours/config.toml` (the shipped `assets/config.toml.example` has commented-out lines for both the loopback and LAN-exposed shapes) and `sudo systemctl restart idle-hours.service`. The UI shares `render_lock` with the button handlers, so a tap on the physical panel and a click in the browser will never render-race — the second one returns `409 busy` instead of queueing. A configured token gates every POST **and** every JSON GET (`/api/history`, `/api/search`, `/api/bucket/*`, the override endpoints, ...). Only the routes a browser loads by tag stay open, because a tag cannot attach a request header: the static shell (`/`, `/main.js`, `/style.css`), `/current.png`, and `/api/preview` — plus `/metrics`, which stays open for scrapers unless you set `web_metrics_token = true`. Note a *loopback* bind is strict about the `Host` header (the DNS-rebinding guard), so reaching the UI at an mDNS name or through a reverse proxy needs that name in `web_allowed_hosts`.
+To enable the UI under systemd, uncomment `web_bind` / `web_token_file` in `/var/lib/idle-hours/config.toml` (the shipped `idle_hours/assets/config.toml.example` has commented-out lines for both the loopback and LAN-exposed shapes) and `sudo systemctl restart idle-hours.service`. The UI shares `render_lock` with the button handlers, so a tap on the physical panel and a click in the browser will never render-race — the second one returns `409 busy` instead of queueing. A configured token gates every POST **and** every JSON GET (`/api/history`, `/api/search`, `/api/bucket/*`, the override endpoints, ...). Only the routes a browser loads by tag stay open, because a tag cannot attach a request header: the static shell (`/`, `/main.js`, `/style.css`), `/current.png`, and `/api/preview` — plus `/metrics`, which stays open for scrapers unless you set `web_metrics_token = true`. Note a *loopback* bind is strict about the `Host` header (the DNS-rebinding guard), so reaching the UI at an mDNS name or through a reverse proxy needs that name in `web_allowed_hosts`.
 
 See the "Curator web UI" section in `README.md` for the full endpoint list, UI panel descriptions, and security model.
 
@@ -234,44 +239,39 @@ sudo reboot
 
 ## Inky software install
 
-Pimoroni recommends installing via their `inky` repo:
+Idle Hours' bootstrap installs Pimoroni's `inky` package plus Raspberry Pi
+OS's supported GPIO backend. The hardware configuration has one important
+Spectra 6 wrinkle: the E673 driver opens `/dev/spidev0.0` for data but drives
+GPIO8 chip-select itself. Ordinary SPI claims GPIO8 in the kernel. Configure
+SPI with no kernel-managed chip selects:
 
 ```bash
-git clone https://github.com/pimoroni/inky
-cd inky
-./install.sh
-```
-
-Suggested answers during install:
-- yes to virtualenv setup
-- yes to copying examples
-- yes to example dependencies
-- docs optional
-
-Then reboot:
-
-```bash
+sudo apt install -y gpiod python3-lgpio python3-rpi-lgpio
+sudo raspi-config nonint do_i2c 0
+sudo raspi-config nonint do_spi 0
+grep -qx 'dtoverlay=spi0-0cs' /boot/firmware/config.txt || \
+  echo 'dtoverlay=spi0-0cs' | sudo tee -a /boot/firmware/config.txt
 sudo reboot
 ```
 
+After reboot, `/dev/spidev0.0` must exist and `gpioinfo` must not show GPIO8
+claimed by `spi0 CS0`.
+
 ## Verify Inky works
 
-Activate Pimoroni virtualenv:
+Create a virtualenv that can see the OS GPIO bindings and verify the backend:
 
 ```bash
+python3 -m venv --system-site-packages ~/.virtualenvs/pimoroni
 source ~/.virtualenvs/pimoroni/bin/activate
-```
-
-Run a known-good Spectra example:
-
-```bash
-cd ~/Pimoroni/inky/examples/spectra6
-python stripes.py
+python -c 'import lgpio, RPi.GPIO; print("GPIO backend: ok")'
 ```
 
 If that fails:
 - check board seating
-- enable `I2C` and `SPI` in `sudo raspi-config`
+- confirm `/dev/spidev0.0` exists
+- confirm GPIO8 is not claimed by `spi0 CS0`
+- confirm `dtparam=spi=on` and `dtoverlay=spi0-0cs` are in the boot config
 - reboot and retry
 
 If Idle Hours later errors on missing fonts, install these as a fallback:
@@ -285,26 +285,22 @@ sudo apt install -y fonts-noto-core fonts-dejavu-core
 Clone the project:
 
 ```bash
-git clone git@github.com:gkoch02/idle-hours.git
-cd idle-hours
+git clone git@github.com:gkoch02/idle-hours.git ~/IdleHours
+cd ~/IdleHours
+pip install -e '.[pi]'
 ```
 
-Render once to file:
+Render once and push to the panel:
 
 ```bash
-python3 run_clock.py --once
-```
-
-Push the current render to Inky:
-
-```bash
-python3 display_inky.py output/current.png
+idle-hours run --once --buttons-off
+idle-hours display output/current.png
 ```
 
 Run full loop with hardware handoff:
 
 ```bash
-python3 run_clock.py --display-script display_inky.py
+idle-hours run --display-script display_inky.py
 ```
 
 ## Suggested service shape

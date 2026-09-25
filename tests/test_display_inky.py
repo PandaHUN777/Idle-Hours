@@ -68,6 +68,28 @@ class TestRetry:
         assert push.call_count == display_inky.MAX_ATTEMPTS
         assert "failed after" in str(exc_info.value)
 
+    @pytest.mark.parametrize("error", [FileNotFoundError("missing SPI"), PermissionError("GPIO denied")])
+    def test_permanent_setup_error_fails_without_retry(self, fake_image, error):
+        with patch("idle_hours.display_inky._push_to_panel", side_effect=error) as push, \
+             patch("sys.argv", _argv(fake_image)), \
+             patch("time.sleep") as sleep:
+            with pytest.raises(SystemExit) as exc_info:
+                display_inky.main()
+        assert push.call_count == 1
+        assert sleep.call_count == 0
+        assert "non-retryable setup error" in str(exc_info.value)
+
+    def test_failed_attempt_releases_traceback_before_retry(self, fake_image):
+        error = IOError("transient")
+        with patch("idle_hours.display_inky._push_to_panel", side_effect=[error, (800, 480)]), \
+             patch("idle_hours.display_inky.gc.collect") as collect, \
+             patch("sys.argv", _argv(fake_image)), \
+             patch("time.sleep"):
+            assert display_inky.main() == 0
+        assert error.__traceback__ is None
+        assert error.__context__ is None
+        collect.assert_called_once_with()
+
     def test_missing_image_exits_without_push(self, tmp_path):
         missing = tmp_path / "does-not-exist.png"
         with patch("idle_hours.display_inky._push_to_panel") as push, \

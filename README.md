@@ -696,7 +696,7 @@ The Pi should track `main` and use the prebuilt runtime assets already committed
 
 For a brand-new Raspberry Pi, the setup has two phases:
 
-1. install the Pimoroni Inky stack and verify the panel works
+1. configure the Spectra 6 SPI bus and Raspberry Pi OS GPIO backend
 2. clone Idle Hours, render once, push once, then install the service
 
 #### OS baseline
@@ -715,34 +715,32 @@ sudo reboot
 #### Install system dependencies
 
 ```bash
-sudo apt install -y git python3 python3-pip python3-venv python3-dev fonts-noto-core fonts-dejavu-core
+sudo apt install -y git gpiod python3 python3-pip python3-venv python3-dev \
+  python3-lgpio python3-rpi-lgpio fonts-noto-core fonts-dejavu-core
 ```
 
-#### Install Pimoroni Inky software
+#### Configure Spectra 6 SPI
 
-Pimoroni's installer is the supported path:
+The E673 driver opens `/dev/spidev0.0` for data but controls GPIO8 chip-select
+itself. Standard SPI claims GPIO8 in the kernel, so use the no-CS overlay:
 
 ```bash
-git clone https://github.com/pimoroni/inky ~/inky
-cd ~/inky
-./install.sh
+sudo raspi-config nonint do_i2c 0
+sudo raspi-config nonint do_spi 0
+grep -qx 'dtoverlay=spi0-0cs' /boot/firmware/config.txt || \
+  echo 'dtoverlay=spi0-0cs' | sudo tee -a /boot/firmware/config.txt
+sudo reboot
 ```
 
-Suggested installer answers:
-
-- yes to virtualenv setup
-- yes to example dependencies
-- yes to copying examples
-- docs optional
-
-If the display does not work afterward, check `SPI` and `I2C` in `sudo raspi-config`, then reboot.
+After reboot, verify `/dev/spidev0.0` exists and `gpioinfo` does not show GPIO8
+claimed by `spi0 CS0`.
 
 #### Verify the Inky panel works
 
 ```bash
+python3 -m venv --system-site-packages ~/.virtualenvs/pimoroni
 source ~/.virtualenvs/pimoroni/bin/activate
-cd ~/Pimoroni/inky/examples/spectra6
-python3 -m idle_hours.stripes
+python -c 'import lgpio, RPi.GPIO; print("GPIO backend: ok")'
 ```
 
 #### Install Idle Hours on the Pi
@@ -751,6 +749,7 @@ python3 -m idle_hours.stripes
 source ~/.virtualenvs/pimoroni/bin/activate
 git clone git@github.com:gkoch02/idle-hours.git
 cd ~/IdleHours
+pip install -e '.[pi]'
 idle-hours run --once
 idle-hours display output/current.png
 idle-hours run --once --display-script display_inky.py --mode production
@@ -766,7 +765,9 @@ There is also a helper script for first-time setup:
 bash scripts/bootstrap_pi_inky.sh
 ```
 
-That script installs base packages, launches the interactive Pimoroni installer, and then resumes Idle Hours setup after reboot.
+That script installs the OS GPIO backend, configures the no-CS SPI overlay,
+pauses for the required reboot, creates the virtualenv, and verifies both the
+GPIO imports and a real panel push.
 
 ### Existing Pi update flow
 
@@ -802,7 +803,7 @@ cd ~/IdleHours
 # (the sample unit passes --config %S/idle-hours/config.toml exclusively,
 # and a missing --config path is a hard error by design).
 sudo cp ops/idle-hours.service.example /etc/systemd/system/idle-hours.service
-sudoedit /etc/systemd/system/idle-hours.service    # fix User= / WorkingDirectory= / ExecStart= paths
+sudoedit /etc/systemd/system/idle-hours.service    # fix User= / ExecStart= paths if needed
 
 sudo install -d -o pi -g pi -m 0750 /var/lib/idle-hours
 sudo install -o pi -g pi -m 0640 \
