@@ -248,6 +248,11 @@ THEME_SATURATION: dict[str, float] = {
     # yellow phrase. Dark-ground tier, same as ``outrun`` / ``nocturne``: the
     # stippled bands and blooms are exactly what the gentler tier flattens.
     "observation": 0.7,
+    # Liu Cixin's *The Three-Body Problem* — a black sky whose suns, their
+    # tangerine wakes and the sunlit matched phrase are all falling-density
+    # blooms or sparse stipple. Dark-ground tier, the ``nocturne`` /
+    # ``bakelite`` argument: a low saturation flattens exactly those.
+    "trisolaris": 0.7,
     # Giger/Beksinski — a K+W airbrushed wall round a blood-red dusk and an
     # ember-bloomed phrase on near-black. Dark-ground tier: the dithered sky
     # and the bloom are exactly what the gentler tier flattens.

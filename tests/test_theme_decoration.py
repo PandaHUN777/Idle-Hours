@@ -99,6 +99,7 @@ CUSTOM_FRAME_THEMES = (
     "photo",
     "control",
     "observation",
+    "trisolaris",
     "biomech",
 )
 
