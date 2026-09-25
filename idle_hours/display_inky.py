@@ -7,6 +7,7 @@ already have produced an image file.
 from __future__ import annotations
 
 import argparse
+import gc
 import sys
 import time
 from pathlib import Path
@@ -15,6 +16,7 @@ from PIL import Image
 
 MAX_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = (1, 4)  # sleeps between attempt 1→2 and 2→3
+NON_RETRYABLE_EXCEPTIONS = (FileNotFoundError, PermissionError)
 
 # Per-theme saturation defaults. The Spectra 6 panel renders dark backgrounds with
 # a different waveform than light ones; pushing saturation slightly higher on the
@@ -481,6 +483,23 @@ def resolve_saturation(theme: str, override: float | None) -> float:
     return THEME_SATURATION.get(theme, THEME_SATURATION["default"])
 
 
+def _release_failed_attempt(exc: Exception) -> Exception:
+    """Drop traceback-owned hardware objects before another panel attempt.
+
+    An exception traceback retains the failed ``_push_to_panel`` frame, which
+    in turn retains the Inky object and its gpiod line requests. Keeping that
+    exception in ``last_error`` poisoned the next attempt with a misleading
+    "pins are in use" failure. Preserve the exception for the final message,
+    but sever traceback/context references and collect any hardware wrapper
+    cycles before retrying.
+    """
+    exc.__traceback__ = None
+    exc.__context__ = None
+    exc.__cause__ = None
+    gc.collect()
+    return exc
+
+
 def _push_to_panel(image_path: Path, saturation: float) -> tuple[int, int]:  # pragma: no cover - hardware only
     """Open the image and push it to the Inky panel. Returns the panel resolution.
 
@@ -520,7 +539,9 @@ def main() -> int:
         try:
             width, height = _push_to_panel(image_path, saturation)
         except Exception as exc:
-            last_error = exc
+            last_error = _release_failed_attempt(exc)
+            if isinstance(exc, NON_RETRYABLE_EXCEPTIONS):
+                raise SystemExit(f"Inky push failed (non-retryable setup error): {exc!r}") from None
             if attempt < MAX_ATTEMPTS:
                 backoff = RETRY_BACKOFF_SECONDS[attempt - 1]
                 print(

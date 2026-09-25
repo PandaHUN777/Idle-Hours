@@ -16,7 +16,9 @@ not public issues.
 ## Dev setup
 
 Python 3.11 or 3.12. The runtime is pure stdlib + Pillow; the Pi deployment
-additionally needs `inky` and `gpiozero`.
+additionally needs `inky` and `gpiozero` plus an OS GPIO backend. Raspberry Pi
+OS deployments use `python3-lgpio` and `python3-rpi-lgpio` from apt with a
+`--system-site-packages` virtualenv; see the Pi setup guide.
 
 ```bash
 git clone https://github.com/gkoch02/idle-hours.git
@@ -30,9 +32,9 @@ Verify:
 ```bash
 pytest
 ruff check .
-python3 run_clock.py --once --buttons-off     # one-shot render to output/current.png
-# or, with the unified CLI (v2):
-idle-hours run --once --buttons-off
+idle-hours run --once --buttons-off           # one-shot render to output/current.png
+# equivalent module form:
+python3 -m idle_hours.run_clock --once --buttons-off
 ```
 
 `pip install -e ".[dev]"` registers `idle-hours` as a console script — every

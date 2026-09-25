@@ -23,7 +23,7 @@ Type=notify
 WatchdogSec=180s
 
 User=pi
-WorkingDirectory=/home/pi/IdleHours
+WorkingDirectory=/var/lib/idle-hours
 
 # StateDirectory=idle-hours makes systemd create /var/lib/idle-hours owned by the
 # service User (`pi` here) before ExecStart runs, and exposes it as %S/idle-hours
@@ -33,6 +33,12 @@ WorkingDirectory=/home/pi/IdleHours
 # option. Migration: ~/.idle-hours/ on older installs; symlink it to
 # /var/lib/idle-hours during the transition (see pi_setup_inky_impression.md).
 StateDirectory=idle-hours
+
+# Raspberry Pi OS uses lgpio/rpi-lgpio as gpiozero's supported backend. lgpio
+# creates a .lgd-nfy* notification FIFO in LG_WD, while its Python wrapper opens
+# that FIFO relative to CWD. Keep both in StateDirectory: it is writable under
+# the sandbox and avoids punching a write hole through ProtectHome.
+Environment=LG_WD=/var/lib/idle-hours
 
 # All persistent settings live in the config file. Copy the shipped example
 # (``idle_hours/assets/config.toml.example`` inside the installed package, or
@@ -83,10 +89,9 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-# ReadWritePaths carves holes in ProtectSystem=strict / ProtectHome=read-only
-# so the service can write its state dir + the render output file. %S expands
-# to /var/lib (since StateDirectory= exists); the WorkingDirectory carve-out
-# is needed for the default --output=output/current.png write path.
+# ReadWritePaths carves a hole in ProtectSystem=strict for StateDirectory.
+# The appliance config writes its render output there too, so ProtectHome can
+# remain read-only and lgpio's notification FIFO stays writable.
 #
 # CURATOR UI: the installed package directory stays read-only under
 # ProtectSystem=strict, and that is where the selection-overrides sidecar,
@@ -103,7 +108,7 @@ ProtectHome=read-only
 # copy on first boot, so the committed bans and content fixes migrate across
 # with no manual step. Do NOT add the package directory to ReadWritePaths;
 # writing into site-packages defeats the sandbox and is clobbered on upgrade.
-ReadWritePaths=%S/idle-hours /home/pi/IdleHours/output
+ReadWritePaths=%S/idle-hours
 # Kernel / IPC hardening. These are free for a render loop that only uses
 # POSIX sockets + GPIO / SPI / I2C char devices — which is what Idle Hours
 # actually does today.

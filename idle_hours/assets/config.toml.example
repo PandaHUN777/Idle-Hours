@@ -17,7 +17,7 @@
 # ---- Render / display pipeline ---------------------------------------------
 render_script  = "render_quote.py"
 display_script = "display_inky.py"
-output         = "output/current.png"
+output         = "/var/lib/idle-hours/current.png"
 mode           = "production"         # production | debug
 theme          = "auto"               # any registered theme name, or "auto" / "random".
                                       # `idle-hours run --help` prints the full list; the
